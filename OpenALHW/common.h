@@ -28,5 +28,6 @@ ALint _alErrorHw2Al(int error);
 ALvoid *_alGetProcAddress(const ALchar *funcName);
 ALint _alGetError();
 ALCenum _alGetEnumValue(const ALCchar *enumname);
+ALint _alSourceStateHw2Al(SceHwSfxState state);
 
 #endif

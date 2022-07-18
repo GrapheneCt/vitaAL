@@ -68,20 +68,20 @@ const struct {
 	//DECL(alSourcei),
 	//DECL(alSource3i),
 	//DECL(alSourceiv),
-	DECL(alGetSourcef),
-	DECL(alGetSource3f),
-	DECL(alGetSourcefv),
-	DECL(alGetSourcei),
-	DECL(alGetSource3i),
-	DECL(alGetSourceiv),
-	DECL(alSourcePlayv),
-	DECL(alSourceStopv),
-	DECL(alSourceRewindv),
-	DECL(alSourcePausev),
-	DECL(alSourcePlay),
-	DECL(alSourceStop),
-	DECL(alSourceRewind),
-	DECL(alSourcePause),
+	//DECL(alGetSourcef),
+	//DECL(alGetSource3f),
+	//DECL(alGetSourcefv),
+	//DECL(alGetSourcei),
+	//DECL(alGetSource3i),
+	//DECL(alGetSourceiv),
+	//DECL(alSourcePlayv),
+	//DECL(alSourceStopv),
+	//DECL(alSourceRewindv),
+	//DECL(alSourcePausev),
+	//DECL(alSourcePlay),
+	//DECL(alSourceStop),
+	//DECL(alSourceRewind),
+	//DECL(alSourcePause),
 	DECL(alSourceQueueBuffers),
 	DECL(alSourceUnqueueBuffers),
 	DECL(alGenBuffers),
@@ -276,4 +276,25 @@ ALint _alErrorHw2Al(SceHwError error)
 	}
 
 	return alError;
+}
+
+ALint _alSourceStateHw2Al(SceHwSfxState state)
+{
+	ALint alState = AL_INITIAL;
+
+	switch (state) {
+	case kSfxState_Ready:
+		alState = AL_STOPPED;
+		break;
+	case kSfxState_Playing:
+		alState = AL_PLAYING;
+		break;
+	case kSfxState_Paused:
+		alState = AL_PAUSED;
+		break;
+	default:
+		break;
+	}
+
+	return alState;
 }

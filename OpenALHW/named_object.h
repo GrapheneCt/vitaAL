@@ -53,6 +53,31 @@ namespace al {
 		ALboolean m_initialized;
 	};
 
+	class Buffer : public NamedObject
+	{
+	public:
+
+		static ALboolean validate(Buffer *buf);
+
+		Buffer();
+		~Buffer();
+
+		ALint init();
+		ALint release();
+
+		ALint frequency;
+		ALint bits;
+		ALint channels;
+
+		ALint data;			// the useless one
+
+		ALint size;
+		ALvoid *storage;	// the actual one
+
+	private:
+
+	};
+
 	class Source : public NamedObject
 	{
 	public:
@@ -78,20 +103,18 @@ namespace al {
 		ALfloat coneInnerAngle;
 		ALfloat coneOuterAngle;
 		ALfloat coneOuterFreq;
-	};
+		SceHwVector position;
+		SceHwVector velocity;
+		SceHwVector direction;
+		ALfloat offsetSec;
+		ALfloat offsetSample;
+		ALfloat offsetByte;
+		ALboolean positionRelative;
+		ALBoolean looping;
+		ALint type;
+		Buffer *staticBuffer;
 
-	class Buffer : public NamedObject
-	{
-	public:
-
-		Buffer();
-		~Buffer();
-
-		ALint init();
-		ALint release();
-
-	private:
-
+		ALBoolean needOffsetsReset;
 	};
 }
 
