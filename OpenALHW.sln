@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1525
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenALHW", "OpenALHW\OpenALHW.vcxproj", "{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|PSVita = Debug|PSVita
+		Release|PSVita = Release|PSVita
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Debug|PSVita.ActiveCfg = Debug|PSVita
+		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Debug|PSVita.Build.0 = Debug|PSVita
+		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Release|PSVita.ActiveCfg = Release|PSVita
+		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Release|PSVita.Build.0 = Release|PSVita
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E30423FF-FECB-46C9-BE85-F63A3041370E}
+	EndGlobalSection
+EndGlobal
