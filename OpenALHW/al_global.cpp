@@ -65,16 +65,22 @@ AL_API const ALchar* AL_APIENTRY alGetString(ALenum param)
 	{
 	case AL_NO_ERROR:
 		value = "AL_NO_ERROR";
+		break;
 	case AL_INVALID_NAME:
 		value = "AL_INVALID_NAME";
+		break;
 	case AL_INVALID_ENUM:
 		value = "AL_INVALID_ENUM";
+		break;
 	case AL_INVALID_VALUE:
 		value = "AL_INVALID_VALUE";
+		break;
 	case AL_INVALID_OPERATION:
 		value = "AL_INVALID_OPERATION";
+		break;
 	case AL_OUT_OF_MEMORY:
 		value = "AL_OUT_OF_MEMORY";
+		break;
 	case AL_VERSION:
 		value = AL_VERSION_STRING;
 		break;
@@ -311,7 +317,6 @@ AL_API void AL_APIENTRY alDopplerFactor(ALfloat value)
 
 AL_API void AL_APIENTRY alDopplerVelocity(ALfloat value)
 {
-	ALfloat res = 0.0f;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
 	if (ctx == NULL)

@@ -38,6 +38,9 @@
     <ClCompile Include="al_source.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="al_buffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AL\al.h">

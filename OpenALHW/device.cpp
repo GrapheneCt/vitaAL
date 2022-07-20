@@ -145,7 +145,7 @@ ALCint DeviceHeatWave::createContext()
 		delete m_ctx;
 	}
 
-	m_isInitialized == ALC_TRUE;
+	m_isInitialized = ALC_TRUE;
 	
 	return _alErrorHw2Al(res);
 }
@@ -162,12 +162,12 @@ ALCvoid DeviceHeatWave::destroyContext()
 		delete m_ctx;
 	}
 
-	m_isInitialized == ALC_FALSE;
+	m_isInitialized = ALC_FALSE;
 }
 
 const ALCchar *DeviceHeatWave::getExtensionList()
 {
-	return k_alcExtensionList;
+	return "ALC_NGS_DECODE_CHANNEL_COUNT";
 }
 
 const ALCchar *DeviceHeatWave::getName()
@@ -336,12 +336,12 @@ ALCvoid DeviceAudioIn::destroyContext()
 		free(m_buffer);
 	}
 
-	m_isInitialized == ALC_FALSE;
+	m_isInitialized = ALC_FALSE;
 }
 
 const ALCchar *DeviceAudioIn::getExtensionList()
 {
-	return k_alcExtensionList;
+	return "";
 }
 
 const ALCchar *DeviceAudioIn::getName()

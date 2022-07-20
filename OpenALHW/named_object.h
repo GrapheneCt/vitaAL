@@ -1,6 +1,9 @@
 #ifndef AL_NAMED_OBJECT_H
 #define AL_NAMED_OBJECT_H
 
+#include <kernel.h>
+#include <vector>
+
 namespace al {
 
 	enum ObjectType
@@ -65,6 +68,9 @@ namespace al {
 		ALint init();
 		ALint release();
 
+		ALvoid ref();
+		ALvoid deref();
+
 		ALint frequency;
 		ALint bits;
 		ALint channels;
@@ -74,13 +80,25 @@ namespace al {
 		ALint size;
 		ALvoid *storage;	// the actual one
 
-	private:
+		ALint trackSize;
+		ALchar *trackStorage;
+
+		ALint state;
+
+		ALint refCounter;
 
 	};
 
 	class Source : public NamedObject
 	{
 	public:
+
+		enum BufferConsumeState
+		{
+			BufferConsumeState_Remain,
+			BufferConsumeState_Exact,
+			BufferConsumeState_NeedMore
+		};
 
 		static ALboolean validate(Source *src);
 
@@ -89,6 +107,9 @@ namespace al {
 
 		ALint init();
 		ALint release();
+		ALvoid dropAllBuffers();
+		ALvoid switchToStaticBuffer(Buffer *buf);
+		ALint reloadRuntimeStream(ALint frequency, ALint channels);
 
 		SceHwSource hwSrc;
 		SceHwSound hwSnd;
@@ -110,11 +131,21 @@ namespace al {
 		ALfloat offsetSample;
 		ALfloat offsetByte;
 		ALboolean positionRelative;
-		ALBoolean looping;
+		ALboolean looping;
 		ALint type;
 		Buffer *staticBuffer;
+		std::vector<Buffer*> queuedBuffers;
+		std::vector<Buffer*> processedBuffers;
+		SceKernelLwMutexWork *lock;
+		ALint streamFrequency;
+		ALint streamChannels;
 
-		ALBoolean needOffsetsReset;
+		ALboolean needOffsetsReset;
+
+	private:
+
+		static void runtimeStreamEntry(SceHwSourceRuntimeStreamCallbackInfo *pCallbackInfo, void *pUserData, ScewHwSourceRuntimeStreamCallbackType reason);
+		static BufferConsumeState consumeBuffer(Buffer *in, ALchar **out, ALuint needBytes, ALuint *remainBytes);
 	};
 }
 

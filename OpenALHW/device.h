@@ -65,9 +65,6 @@ namespace al {
 
 	private:
 
-		static constexpr ALCchar k_alcExtensionList[] =
-			"";
-
 		ALCuint m_samplingFrequency;
 		const ALCenum m_format = AL_FORMAT_MONO16;
 		ALCsizei m_buffersize;
@@ -96,11 +93,7 @@ namespace al {
 		ALCvoid setMp3ChannelCount(ALCint count);
 		ALCvoid setAt9ChannelCount(ALCint count);
 
-
 	private:
-
-		static constexpr ALCchar k_alcExtensionList[] =
-			"ALC_NGS_DECODE_CHANNEL_COUNT";
 
 		ALCint m_mp3ChCount;
 		ALCint m_at9ChCount;

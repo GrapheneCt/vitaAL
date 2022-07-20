@@ -15,6 +15,7 @@ static ALCchar s_alcNoDeviceExtList[] =
 	"ALC_ENUMERATE_ALL_EXT "
 	"ALC_ENUMERATION_EXT "
 	"AL_EXT_EXPONENT_DISTANCE "
+	"AL_EXT_LINEAR_DISTANCE "
 	"ALC_EXT_CAPTURE";
 
 //Each device name will be separated by a single NULL character and the list will be terminated with two NULL characters

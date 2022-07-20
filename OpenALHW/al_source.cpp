@@ -8,6 +8,130 @@
 
 using namespace al;
 
+Source::BufferConsumeState Source::consumeBuffer(Buffer *in, ALchar **out, ALuint needBytes, ALuint *remainBytes)
+{
+	*remainBytes = 0;
+
+	if (needBytes < in->trackSize)
+	{
+		memcpy(*out, in->trackStorage, needBytes);
+		*out += needBytes;
+		in->trackStorage += needBytes;
+		in->trackSize -= needBytes;
+		return BufferConsumeState_Remain;
+	}
+	else if (needBytes == in->trackSize)
+	{
+		memcpy(*out, in->trackStorage, needBytes);
+		*out += needBytes;
+		in->trackStorage = NULL;
+		in->trackSize = 0;
+		return BufferConsumeState_Exact;
+	}
+	else if (needBytes > in->trackSize)
+	{
+		memcpy(*out, in->trackStorage, in->trackSize);
+		*out += in->trackSize;
+		*remainBytes = needBytes - in->trackSize;
+		in->trackStorage = NULL;
+		in->trackSize = 0;
+		return BufferConsumeState_NeedMore;
+	}
+
+	return BufferConsumeState_Exact;
+}
+
+void Source::runtimeStreamEntry(SceHwSourceRuntimeStreamCallbackInfo *pCallbackInfo, void *pUserData, ScewHwSourceRuntimeStreamCallbackType reason)
+{
+	Source *src = (Source *)pUserData;
+
+	BufferConsumeState ret;
+	Buffer *curBuf = NULL;
+	ALuint remBytes = 0;
+	ALuint requestedSize = 0;
+	void *writePtr = NULL;
+
+	//unsigned int t1 = sceKernelGetProcessTimeLow();
+	if (reason == eStreamRender)
+	{
+		sceKernelLockLwMutex(src->lock, 1, NULL);
+
+		requestedSize = pCallbackInfo->nBufferSizeBytes;
+		remBytes = requestedSize;
+		writePtr = pCallbackInfo->pcBuffer;
+
+		if (src->type == AL_STREAMING)
+		{
+			//printf("requested %u\n", requestedSize);
+
+		consumeNext:
+
+			if (src->queuedBuffers.size() == 0)
+			{
+				pCallbackInfo->nBytesWrittenOut = pCallbackInfo->nBufferSizeBytes - remBytes;
+				return;
+			}
+
+			/*
+			if (seekPos != 0)
+			{
+
+			}
+			*/
+
+			curBuf = *src->queuedBuffers.begin();
+			ret = consumeBuffer(curBuf, (ALchar **)&writePtr, requestedSize, &remBytes);
+			//printf("buffer at state %d\n", ret);
+			switch (ret) {
+			case BufferConsumeState_Remain:
+				break;
+			case BufferConsumeState_Exact:
+				curBuf->deref();
+				src->queuedBuffers.erase(src->queuedBuffers.begin());
+				src->processedBuffers.push_back(curBuf);
+				break;
+			case BufferConsumeState_NeedMore:
+				curBuf->deref();
+				src->queuedBuffers.erase(src->queuedBuffers.begin());
+				src->processedBuffers.push_back(curBuf);
+				requestedSize = remBytes;
+				goto consumeNext;
+			}
+
+			pCallbackInfo->nBytesWrittenOut = pCallbackInfo->nBufferSizeBytes;
+
+			//printf("written %u\n", (char *)writePtr - pCallbackInfo->pcBuffer);
+		}
+		else if (src->type == AL_STATIC)
+		{
+			if (src->staticBuffer->trackSize == 0)
+			{
+				pCallbackInfo->nBytesWrittenOut = 0;
+				return;
+			}
+
+			ret = consumeBuffer(src->staticBuffer, (ALchar **)&writePtr, requestedSize, &remBytes);
+			//printf("STATIC buffer at state %d\n", ret);
+			switch (ret) {
+			case BufferConsumeState_Remain:
+				break;
+			case BufferConsumeState_Exact:
+				src->staticBuffer->deref();
+				break;
+			case BufferConsumeState_NeedMore:
+				src->staticBuffer->deref();
+				pCallbackInfo->nBytesWrittenOut = pCallbackInfo->nBufferSizeBytes - remBytes;
+				return;
+			}
+
+			pCallbackInfo->nBytesWrittenOut = pCallbackInfo->nBufferSizeBytes;
+		}
+
+		sceKernelUnlockLwMutex(src->lock, 1);
+	}
+	//printf("time taken %u\n", sceKernelGetProcessTimeLow() - t1);
+}
+
 ALboolean Source::validate(Source *src)
 {
 	if (src == NULL)
@@ -48,7 +172,10 @@ Source::Source()
 	type(AL_UNDETERMINED),
 	staticBuffer(NULL),
 	looping(AL_FALSE),
-	needOffsetsReset(AL_FALSE)
+	needOffsetsReset(AL_FALSE),
+	lock(NULL),
+	streamFrequency(0),
+	streamChannels(0)
 {
 	m_type = ObjectType_Source;
 }
@@ -79,6 +206,10 @@ ALint Source::init()
 	{
 		goto error;
 	}
+
+	lock = (SceKernelLwMutexWork *)malloc(sizeof(SceKernelLwMutexWork));
+
+	sceKernelCreateLwMutex(lock, "ALSound", SCE_KERNEL_LW_MUTEX_ATTR_TH_FIFO, 0, NULL);
 
 	m_initialized = AL_TRUE;
 
@@ -117,6 +248,13 @@ ALint Source::release()
 		goto error;
 	}
 
+	sceKernelLockLwMutex(lock, 1, NULL);
+	sceKernelUnlockLwMutex(lock, 1);
+
+	sceKernelDeleteLwMutex(lock);
+
+	free(lock);
+
 	m_initialized = AL_FALSE;
 
 	return AL_NO_ERROR;
@@ -126,9 +264,116 @@ error:
 	return _alErrorHw2Al(ret);
 }
 
+ALvoid Source::dropAllBuffers()
+{
+	Buffer *buf = NULL;
+
+	sceHeatWaveSfxStop(hwSfx);
+
+	while (queuedBuffers.size() != 0)
+	{
+		buf = queuedBuffers.back();
+		buf->deref();
+		if (buf->refCounter == 0)
+		{
+			buf->state = AL_UNUSED;
+		}
+		queuedBuffers.pop_back();
+	}
+
+	while (processedBuffers.size() != 0)
+	{
+		buf = processedBuffers.back();
+		if (buf->refCounter == 0)
+		{
+			buf->state = AL_UNUSED;
+		}
+		processedBuffers.pop_back();
+	}
+
+	if (staticBuffer != NULL)
+	{
+		staticBuffer->deref();
+		if (staticBuffer->refCounter == 0)
+		{
+			staticBuffer->state = AL_UNUSED;
+		}
+		staticBuffer = NULL;
+	}
+
+	type = AL_UNDETERMINED;
+}
+
+ALvoid Source::switchToStaticBuffer(Buffer *buf)
+{
+	Buffer *obuf = NULL;
+
+	sceKernelLockLwMutex(lock, 1, NULL);
+
+	while (queuedBuffers.size() != 0)
+	{
+		obuf = queuedBuffers.back();
+		obuf->deref();
+		if (obuf->refCounter == 0)
+		{
+			obuf->state = AL_UNUSED;
+		}
+		queuedBuffers.pop_back();
+	}
+
+	while (processedBuffers.size() != 0)
+	{
+		obuf = processedBuffers.back();
+		if (obuf->refCounter == 0)
+		{
+			obuf->state = AL_UNUSED;
+		}
+		processedBuffers.pop_back();
+	}
+
+	if (staticBuffer != NULL)
+	{
+		staticBuffer->deref();
+		if (staticBuffer->refCounter == 0)
+		{
+			staticBuffer->state = AL_UNUSED;
+		}
+		staticBuffer = NULL;
+	}
+
+	staticBuffer = buf;
+	staticBuffer->ref();
+
+	type = AL_STATIC;
+
+	sceKernelUnlockLwMutex(lock, 1);
+}
+
+ALint Source::reloadRuntimeStream(ALint frequency, ALint channels)
+{
+	SceHwSourceRuntimeStreamParam sparam;
+	SceHwSfxState state = kSfxState_Playing;
+
+	sceHeatWaveSfxGetState(hwSfx, &state);
+
+	if (state != kSfxState_Ready)
+	{
+		return AL_INVALID_OPERATION;
+	}
+
+	sparam.nSampleRate = frequency;
+	sparam.nChannelCount = channels;
+
+	sceHeatWaveSourceLoadRuntimeStream(hwSrc, &sparam, runtimeStreamEntry, this);
+
+	streamFrequency = frequency;
+	streamChannels = channels;
+
+	return AL_NO_ERROR;
+}
+
 AL_API void AL_APIENTRY alGenSources(ALsizei n, ALuint* sources)
 {
-	Source **ppSrc = NULL;
 	Source *pSrc = NULL;
 	ALint ret = AL_NO_ERROR;
 	Context *ctx = (Context *)alcGetCurrentContext();
@@ -156,8 +401,7 @@ AL_API void AL_APIENTRY alGenSources(ALsizei n, ALuint* sources)
 			return;
 		}
 
-		ppSrc = (Source **)&sources[i];
-		*ppSrc = pSrc;
+		sources[i] = (ALuint)pSrc;
 	}
 }
 
@@ -340,9 +584,9 @@ AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 			AL_SET_ERROR(AL_INVALID_VALUE);
 			return;
 		}
-		sceHeatWaveSfxPause(src->hwSfx);
+		sceKernelLockLwMutex(src->lock, 1, NULL);
 		src->offsetSec = value;
-		sceHeatWaveSfxResume(src->hwSfx);
+		sceKernelUnlockLwMutex(src->lock, 1);
 		break;
 	case AL_SAMPLE_OFFSET:
 		if (value < 0.0f)
@@ -350,9 +594,9 @@ AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 			AL_SET_ERROR(AL_INVALID_VALUE);
 			return;
 		}
-		sceHeatWaveSfxPause(src->hwSfx);
+		sceKernelLockLwMutex(src->lock, 1, NULL);
 		src->offsetSample = value;
-		sceHeatWaveSfxResume(src->hwSfx);
+		sceKernelUnlockLwMutex(src->lock, 1);
 		break;
 	case AL_BYTE_OFFSET:
 		if (value < 0.0f)
@@ -360,9 +604,9 @@ AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 			AL_SET_ERROR(AL_INVALID_VALUE);
 			return;
 		}
-		sceHeatWaveSfxPause(src->hwSfx);
+		sceKernelLockLwMutex(src->lock, 1, NULL);
 		src->offsetByte = value;
-		sceHeatWaveSfxResume(src->hwSfx);
+		sceKernelUnlockLwMutex(src->lock, 1);
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -503,7 +747,6 @@ AL_API void AL_APIENTRY alSourcei(ALuint sid, ALenum param, ALint value)
 	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Buffer *buf = NULL;
-	SceHwSfxState state;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
 	switch (param)
@@ -553,51 +796,20 @@ AL_API void AL_APIENTRY alSourcei(ALuint sid, ALenum param, ALint value)
 		buf = (Buffer *)value;
 		if (!Buffer::validate(buf))
 		{
-			AL_SET_ERROR(AL_INVALID_VALUE);
+			AL_SET_ERROR(AL_INVALID_NAME);
 			return;
 		}
-		src->dropStreamBuffers();
-		src->setStaticBuffer(buf);
-		break;
-		/*
-	case AL_SOURCE_STATE:
-		switch (value)
+		if (src->streamFrequency != buf->frequency || src->streamChannels != buf->channels)
 		{
-		case AL_INITIAL:
-		case AL_STOPPED:
-			sceHeatWaveSfxStop(src->hwSfx);
-			break;
-		case AL_PAUSED:
-			sceHeatWaveSfxPause(src->hwSfx);
-			break;
-		case AL_PLAYING:
-			ret = _alErrorHw2Al(sceHeatWaveSfxGetState(src->hwSfx, &state));
+			ret = src->reloadRuntimeStream(buf->frequency, buf->channels);
 			if (ret != AL_NO_ERROR)
 			{
 				AL_SET_ERROR(ret);
 				return;
 			}
-			if (state == kSfxState_Paused)
-			{
-				sceHeatWaveSfxResume(src->hwSfx);
-			}
-			else
-			{
-				sceHeatWaveSfxPlay(src->hwSfx, NULL);
-			}
-			break;
-		default:
-			AL_SET_ERROR(AL_INVALID_VALUE);
-			break;
 		}
+		src->switchToStaticBuffer(buf);
 		break;
-	case AL_BUFFERS_QUEUED:
-		n;
-		break;
-	case AL_BUFFERS_PROCESSED:
-		n;
-		break;
-		*/
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
 		break;
@@ -734,7 +946,6 @@ AL_API void AL_APIENTRY alGetSourcef(ALuint sid, ALenum param, ALfloat* value)
 
 AL_API void AL_APIENTRY alGetSource3f(ALuint sid, ALenum param, ALfloat* value1, ALfloat* value2, ALfloat* value3)
 {
-	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
@@ -822,7 +1033,6 @@ AL_API void AL_APIENTRY alGetSourcei(ALuint sid, ALenum param, ALint* value)
 	ALint ret = AL_NO_ERROR;
 	ALfloat fret = 0.0f;
 	Source *src = NULL;
-	Buffer *buf = NULL;
 	SceHwSfxState state;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
@@ -887,10 +1097,10 @@ AL_API void AL_APIENTRY alGetSourcei(ALuint sid, ALenum param, ALint* value)
 		*value = _alSourceStateHw2Al(state);
 		break;
 	case AL_BUFFERS_QUEUED:
-		n;
+		*value = src->queuedBuffers.size();
 		break;
 	case AL_BUFFERS_PROCESSED:
-		n;
+		*value = src->processedBuffers.size();
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -1016,6 +1226,7 @@ AL_API void AL_APIENTRY alSourcePausev(ALsizei ns, const ALuint *sids)
 
 AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 {
+	ALint ret = AL_NO_ERROR;
 	SceHwSfxState state;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
@@ -1064,7 +1275,6 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 
 AL_API void AL_APIENTRY alSourceStop(ALuint sid)
 {
-	SceHwSfxState state;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
@@ -1108,11 +1318,11 @@ AL_API void AL_APIENTRY alSourceRewind(ALuint sid)
 		return;
 	}
 
-	sceHeatWaveSfxPause(src->hwSfx);
+	sceKernelLockLwMutex(src->lock, 1, NULL);
 	src->offsetSec = 0.0f;
 	src->offsetSample = 0.0f;
 	src->offsetByte = 0.0f;
-	sceHeatWaveSfxResume(src->hwSfx);
+	sceKernelUnlockLwMutex(src->lock, 1);
 }
 
 AL_API void AL_APIENTRY alSourcePause(ALuint sid)
@@ -1135,4 +1345,146 @@ AL_API void AL_APIENTRY alSourcePause(ALuint sid)
 	}
 
 	sceHeatWaveSfxPause(src->hwSfx);
+}
+
+AL_API void AL_APIENTRY alSourceQueueBuffers(ALuint sid, ALsizei numEntries, const ALuint *bids)
+{
+	Source *src = NULL;
+	Buffer *buf = NULL;
+	Context *ctx = (Context *)alcGetCurrentContext();
+	ALint ret = AL_NO_ERROR;
+	ALint frequency = 0;
+	ALint bits = 0;
+	ALint channels = 0;
+
+	if (ctx == NULL)
+	{
+		AL_SET_ERROR(AL_INVALID_OPERATION);
+		return;
+	}
+
+	if (bids == NULL)
+	{
+		AL_SET_ERROR(AL_INVALID_VALUE);
+		return;
+	}
+
+	src = (Source *)sid;
+
+	if (!Source::validate(src))
+	{
+		AL_SET_ERROR(AL_INVALID_NAME);
+		return;
+	}
+
+	if (src->type == AL_STATIC)
+	{
+		AL_SET_ERROR(AL_INVALID_OPERATION);
+		return;
+	}
+
+	for (int i = 0; i < numEntries; i++)
+	{
+		if (bids[i] == 0)
+			continue;
+
+		if (buf == NULL)
+		{
+			buf = (Buffer *)bids[i];
+			frequency = buf->frequency;
+			bits = buf->bits;
+			channels = buf->channels;
+		}
+		else
+		{
+			buf = (Buffer *)bids[i];
+			if (frequency != buf->frequency || bits != buf->bits || channels != buf->channels)
+			{
+				AL_SET_ERROR(AL_INVALID_VALUE);
+				return;
+			}
+		}
+	}
+
+	buf = NULL;
+
+	if (src->streamFrequency != frequency || src->streamChannels != channels)
+	{
+		ret = src->reloadRuntimeStream(frequency, channels);
+		if (ret != AL_NO_ERROR)
+		{
+			AL_SET_ERROR(ret);
+			return;
+		}
+	}
+
+	sceKernelLockLwMutex(src->lock, 1, NULL);
+	for (int i = 0; i < numEntries; i++)
+	{
+		if (bids[i] == 0)
+			continue;
+
+		buf = (Buffer *)bids[i];
+
+		buf->ref();
+		src->queuedBuffers.push_back(buf);
+	}
+	sceKernelUnlockLwMutex(src->lock, 1);
+
+	src->type = AL_STREAMING;
+}
+
+AL_API void AL_APIENTRY alSourceUnqueueBuffers(ALuint sid, ALsizei numEntries, ALuint *bids)
+{
+	Source *src = NULL;
+	Buffer *buf = NULL;
+	Context *ctx = (Context *)alcGetCurrentContext();
+
+	if (ctx == NULL)
+	{
+		AL_SET_ERROR(AL_INVALID_OPERATION);
+		return;
+	}
+
+	if (bids == NULL)
+	{
+		AL_SET_ERROR(AL_INVALID_VALUE);
+		return;
+	}
+
+	src = (Source *)sid;
+
+	if (!Source::validate(src))
+	{
+		AL_SET_ERROR(AL_INVALID_NAME);
+		return;
+	}
+
+	if (src->type == AL_STATIC)
+	{
+		AL_SET_ERROR(AL_INVALID_OPERATION);
+		return;
+	}
+
+	sceKernelLockLwMutex(src->lock, 1, NULL);
+	if (src->processedBuffers.size() < numEntries)
+	{
+		sceKernelUnlockLwMutex(src->lock, 1);
+		AL_SET_ERROR(AL_INVALID_VALUE);
+		return;
+	}
+
+	std::vector<Buffer*>::iterator it = src->processedBuffers.begin();
+
+	for (int i = 0; i < numEntries; i++)
+	{
+		bids[i] = (ALuint)*it;
+		buf = (Buffer *)bids[i];
+		if (buf->refCounter == 0)
+		{
+			buf->state = AL_UNUSED;
+		}
+		it = src->processedBuffers.erase(it);
+	}
+	sceKernelUnlockLwMutex(src->lock, 1);
 }

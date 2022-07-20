@@ -11,14 +11,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}</ProjectGuid>
+    <ProjectGuid>{2DDC6544-BB67-4E36-BB1E-E8DB0D877263}</ProjectGuid>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PSVita'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|PSVita'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup Condition="'$(DebuggerFlavor)'=='PSVitaDebugger'" Label="OverrideDebuggerDefaults">
@@ -42,54 +42,25 @@
   <PropertyGroup />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PSVita'">
     <ClCompile>
-      <PreprocessorDefinitions>_DEBUG;AL_BUILD_LIBRARY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <AdditionalIncludeDirectories>$(SCE_PSP2_SDK_DIR)\target\include\vdsuite\user;$(SCE_PSP2_SDK_DIR)\target\include\vdsuite\common;$(ProjectDir)\include;$(ProjectDir)\include_internal;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <CppLanguageStd>Cpp11</CppLanguageStd>
+      <AdditionalIncludeDirectories>$(SCE_PSP2_SDK_DIR)\target\include\vdsuite\user;$(SCE_PSP2_SDK_DIR)\target\include\vdsuite\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SCE_PSP2_SDK_DIR)\target\lib\vdsuite;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>-lSceHeatWave;-lSceDbg_stub;-lSceAudioIn_stub;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(OutDir)OpenALHW_stub.a;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|PSVita'">
     <ClCompile>
-      <PreprocessorDefinitions>NDEBUG;AL_BUILD_LIBRARY;SCE_DBG_LOGGING_ENABLED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <OptimizationLevel>Level3</OptimizationLevel>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
+      <OptimizationLevel>Level2</OptimizationLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <AdditionalIncludeDirectories>$(SCE_PSP2_SDK_DIR)\target\include\vdsuite\user;$(SCE_PSP2_SDK_DIR)\target\include\vdsuite\common;$(ProjectDir)\include;$(ProjectDir)\include_internal;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <CppLanguageStd>Cpp11</CppLanguageStd>
     </ClCompile>
-    <Link>
-      <InfoStripping>StripSymsAndDebug</InfoStripping>
-    </Link>
-    <Link>
-      <DataStripping>StripFuncsAndData</DataStripping>
-    </Link>
-    <Link>
-      <DuplicateStripping>true</DuplicateStripping>
-      <AdditionalLibraryDirectories>$(SCE_PSP2_SDK_DIR)\target\lib\vdsuite;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>-lSceHeatWave;-lSceAudioIn_stub;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="al_buffer.cpp" />
-    <ClCompile Include="al_global.cpp" />
-    <ClCompile Include="al_listener.cpp" />
-    <ClCompile Include="al_source.cpp" />
-    <ClCompile Include="common.cpp" />
-    <ClCompile Include="context.cpp" />
-    <ClCompile Include="alc.cpp" />
-    <ClCompile Include="device.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="common.h" />
-    <ClInclude Include="context.h" />
-    <ClInclude Include="device.h" />
-    <ClInclude Include="include\AL\al.h" />
-    <ClInclude Include="include\AL\alc.h" />
-    <ClInclude Include="named_object.h" />
+    <ClCompile Include="main.c" />
   </ItemGroup>
   <Import Condition="'$(ConfigurationType)' == 'Makefile' and Exists('$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets')" Project="$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

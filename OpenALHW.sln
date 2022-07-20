@@ -5,6 +5,16 @@ VisualStudioVersion = 15.0.28307.1525
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenALHW", "OpenALHW\OpenALHW.vcxproj", "{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_1", "test_1\test_1.vcxproj", "{2DDC6544-BB67-4E36-BB1E-E8DB0D877263}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506} = {0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_2", "test_2\test_2.vcxproj", "{B5483941-ABDD-4F68-A28B-C8388556523E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506} = {0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|PSVita = Debug|PSVita
@@ -15,6 +25,14 @@ Global
 		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Debug|PSVita.Build.0 = Debug|PSVita
 		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Release|PSVita.ActiveCfg = Release|PSVita
 		{0F33EDB8-1F1A-4AAE-AC48-EBF581D08506}.Release|PSVita.Build.0 = Release|PSVita
+		{2DDC6544-BB67-4E36-BB1E-E8DB0D877263}.Debug|PSVita.ActiveCfg = Debug|PSVita
+		{2DDC6544-BB67-4E36-BB1E-E8DB0D877263}.Debug|PSVita.Build.0 = Debug|PSVita
+		{2DDC6544-BB67-4E36-BB1E-E8DB0D877263}.Release|PSVita.ActiveCfg = Release|PSVita
+		{2DDC6544-BB67-4E36-BB1E-E8DB0D877263}.Release|PSVita.Build.0 = Release|PSVita
+		{B5483941-ABDD-4F68-A28B-C8388556523E}.Debug|PSVita.ActiveCfg = Debug|PSVita
+		{B5483941-ABDD-4F68-A28B-C8388556523E}.Debug|PSVita.Build.0 = Debug|PSVita
+		{B5483941-ABDD-4F68-A28B-C8388556523E}.Release|PSVita.ActiveCfg = Release|PSVita
+		{B5483941-ABDD-4F68-A28B-C8388556523E}.Release|PSVita.Build.0 = Release|PSVita
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
