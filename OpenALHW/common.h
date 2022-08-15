@@ -9,12 +9,6 @@
 #ifndef AL_COMMON_H
 #define AL_COMMON_H
 
-#ifdef STATIC_BUILD
-#pragma comment(lib, "libSceHeatWave.a")
-#else
-#pragma comment(lib, "libSceHeatWave_stub.a")
-#endif
-
 // Located in common.cpp
 extern int32_t g_lastError;
 extern AlMemoryAllocNGS g_alloc;
