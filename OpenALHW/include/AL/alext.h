@@ -8,14 +8,18 @@
 extern "C" {
 #endif
 
-AL_API void AL_APIENTRY alcSetMp3ChannelCountNGS( ALCdevice *device, ALCint count );
-AL_API void AL_APIENTRY alcSetAt9ChannelCountNGS( ALCdevice *device, ALCint count );
+typedef void*(*AlMemoryAllocNGS)(size_t size);
+typedef void*(*AlMemoryAllocAlignNGS)(size_t align, size_t size);
+typedef void(*AlMemoryFreeNGS)(void *ptr);
+
+AL_API void AL_APIENTRY alcSetThreadAffinityNGS(ALCdevice *device, ALCuint outputThreadAffinity);
+AL_API void AL_APIENTRY alcSetMemoryFunctionsNGS(AlMemoryAllocNGS alloc, AlMemoryAllocAlignNGS allocAlign, AlMemoryFreeNGS free);
 
 /*
  * Pointer-to-function types, useful for dynamically getting AL entry points.
  */
-typedef void           (AL_APIENTRY *LPALCSETMP3CHANNELCOUNTNGS)( ALCdevice *device, ALCint count );
-typedef void           (AL_APIENTRY *LPALCSETAT9CHANNELCOUNTNGS)( ALCdevice *device, ALCint count );
+typedef void           (AL_APIENTRY *LPALCSETTHREADAFFINITYNGS)( ALCdevice *device, ALCuint outputThreadAffinity );
+typedef void           (AL_APIENTRY *LPALCSETMEMORYFUNCTIONSNGS)( AlMemoryAllocNGS alloc, AlMemoryAllocAlignNGS allocAlign, AlMemoryFreeNGS free );
 
 #if defined(__cplusplus)
 }

@@ -1,9 +1,11 @@
-#include <heatwave.h>
+#include <kernel.h>
+#include <ngs.h>
 #include <string.h>
 #include <ctype.h>
 
 #include "common.h"
 #include "context.h"
+#include "panner.h"
 #include "device.h"
 
 using namespace al;
@@ -11,6 +13,8 @@ using namespace al;
 AL_API void AL_APIENTRY alEnable(ALenum capability)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -25,6 +29,8 @@ AL_API void AL_APIENTRY alDisable(ALenum capability)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -38,6 +44,8 @@ AL_API ALboolean AL_APIENTRY alIsEnabled(ALenum capability)
 {
 	ALboolean value = AL_FALSE;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -54,6 +62,8 @@ AL_API const ALchar* AL_APIENTRY alGetString(ALenum param)
 {
 	const ALCchar *value = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -103,6 +113,8 @@ AL_API const ALchar* AL_APIENTRY alGetString(ALenum param)
 
 AL_API void AL_APIENTRY alGetBooleanv(ALenum param, ALboolean* data)
 {
+	AL_TRACE_CALL
+
 	if (data == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
@@ -114,6 +126,8 @@ AL_API void AL_APIENTRY alGetBooleanv(ALenum param, ALboolean* data)
 
 AL_API void AL_APIENTRY alGetIntegerv(ALenum param, ALint* data)
 {
+	AL_TRACE_CALL
+
 	if (data == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
@@ -125,6 +139,8 @@ AL_API void AL_APIENTRY alGetIntegerv(ALenum param, ALint* data)
 
 AL_API void AL_APIENTRY alGetFloatv(ALenum param, ALfloat* data)
 {
+	AL_TRACE_CALL
+
 	if (data == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
@@ -136,6 +152,8 @@ AL_API void AL_APIENTRY alGetFloatv(ALenum param, ALfloat* data)
 
 AL_API void AL_APIENTRY alGetDoublev(ALenum param, ALdouble* data)
 {
+	AL_TRACE_CALL
+
 	if (data == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
@@ -147,10 +165,10 @@ AL_API void AL_APIENTRY alGetDoublev(ALenum param, ALdouble* data)
 
 AL_API ALboolean AL_APIENTRY alGetBoolean(ALenum param)
 {
-	ALfloat res = 0.0f;
-	ALint ires = 0;
 	ALboolean value = AL_FALSE;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -161,12 +179,10 @@ AL_API ALboolean AL_APIENTRY alGetBoolean(ALenum param)
 	switch (param)
 	{
 	case AL_DOPPLER_FACTOR:
-		sceHeatWaveGetDopplerFactor(&res);
-		value = (res != 0.0f);
+		value = (ctx->m_panner.m_dopplerFactor != 0.0f);
 		break;
 	case AL_DISTANCE_MODEL:
-		sceHeatWaveGetDistanceModel(&ires);
-		if (ires != SCE_HEATWAVE_API_DISTANCE_MODEL_DISABLE)
+		if (ctx->m_panner.m_distanceModel != -1)
 		{
 			value = AL_TRUE;
 		}
@@ -176,8 +192,7 @@ AL_API ALboolean AL_APIENTRY alGetBoolean(ALenum param)
 		}
 		break;
 	case AL_SPEED_OF_SOUND:
-		sceHeatWaveGetSpeedOfSound(&res);
-		value = (res != 0.0f);
+		value = (ctx->m_panner.m_speedOfSound != 0.0f);
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -189,15 +204,17 @@ AL_API ALboolean AL_APIENTRY alGetBoolean(ALenum param)
 
 AL_API ALint AL_APIENTRY alGetInteger(ALenum param)
 {
+	AL_TRACE_CALL
+
 	return (ALint)alGetFloat(param);
 }
 
 AL_API ALfloat AL_APIENTRY alGetFloat(ALenum param)
 {
-	ALfloat res = 0.0f;
-	ALint ires = 0;
 	ALfloat value = 0.0f;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -208,16 +225,13 @@ AL_API ALfloat AL_APIENTRY alGetFloat(ALenum param)
 	switch (param)
 	{
 	case AL_DOPPLER_FACTOR:
-		sceHeatWaveGetDopplerFactor(&res);
-		value = res;
+		value = ctx->m_panner.m_dopplerFactor;
 		break;
 	case AL_DISTANCE_MODEL:
-		sceHeatWaveGetDistanceModel(&ires);
-		value = (ALfloat)ires;
+		value = (ALfloat)ctx->m_panner.m_distanceModel;
 		break;
 	case AL_SPEED_OF_SOUND:
-		sceHeatWaveGetSpeedOfSound(&res);
-		value = res;
+		value = ctx->m_panner.m_speedOfSound;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -229,11 +243,15 @@ AL_API ALfloat AL_APIENTRY alGetFloat(ALenum param)
 
 AL_API ALdouble AL_APIENTRY alGetDouble(ALenum param)
 {
+	AL_TRACE_CALL
+
 	return (ALdouble)alGetFloat(param);
 }
 
 AL_API ALenum AL_APIENTRY alGetError(void)
 {
+	AL_TRACE_CALL
+
 	return _alGetError();
 }
 
@@ -242,6 +260,8 @@ AL_API ALboolean AL_APIENTRY alIsExtensionPresent(const ALchar* extname)
 	const ALCchar *ptr = NULL;
 	size_t len = 0;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -276,6 +296,8 @@ AL_API ALboolean AL_APIENTRY alIsExtensionPresent(const ALchar* extname)
 
 AL_API void* AL_APIENTRY alGetProcAddress(const ALchar* fname)
 {
+	AL_TRACE_CALL
+
 	if (!fname)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
@@ -287,6 +309,8 @@ AL_API void* AL_APIENTRY alGetProcAddress(const ALchar* fname)
 
 AL_API ALenum AL_APIENTRY alGetEnumValue(const ALchar* ename)
 {
+	AL_TRACE_CALL
+
 	if (!ename)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
@@ -298,7 +322,10 @@ AL_API ALenum AL_APIENTRY alGetEnumValue(const ALchar* ename)
 
 AL_API void AL_APIENTRY alDopplerFactor(ALfloat value)
 {
+	ALint ret = AL_NO_ERROR;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -312,12 +339,21 @@ AL_API void AL_APIENTRY alDopplerFactor(ALfloat value)
 		return;
 	}
 
-	sceHeatWaveSetDopplerFactor(value);
+	ctx->beginParamUpdate();
+	ret = ctx->m_panner.setDopplerFactor(value);
+	ctx->endParamUpdate();
+	if (ret != AL_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
+		return;
+	}
 }
 
 AL_API void AL_APIENTRY alDopplerVelocity(ALfloat value)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -336,7 +372,10 @@ AL_API void AL_APIENTRY alDopplerVelocity(ALfloat value)
 
 AL_API void AL_APIENTRY alSpeedOfSound(ALfloat value)
 {
+	ALint ret = AL_NO_ERROR;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -350,45 +389,36 @@ AL_API void AL_APIENTRY alSpeedOfSound(ALfloat value)
 		return;
 	}
 
-	sceHeatWaveSetSpeedOfSound(value);
+	ctx->beginParamUpdate();
+	ret = ctx->m_panner.setSpeedOfSound(value);
+	ctx->endParamUpdate();
+	if (ret != AL_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
+		return;
+	}
 }
 
 AL_API void AL_APIENTRY alDistanceModel(ALenum distanceModel)
 {
+	ALint ret = AL_NO_ERROR;
 	ALint model = AL_NONE;
+	Context *ctx = (Context *)alcGetCurrentContext();
 
-	if (alcGetCurrentContext() == NULL)
+	AL_TRACE_CALL
+
+	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	switch (distanceModel) {
-	case AL_NONE:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_DISABLE;
-		break;
-	case AL_INVERSE_DISTANCE:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_INVERSE;
-		break;
-	case AL_INVERSE_DISTANCE_CLAMPED:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_INVERSE_CLAMPED;
-		break;
-	case AL_LINEAR_DISTANCE:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_LINEAR;
-		break;
-	case AL_LINEAR_DISTANCE_CLAMPED:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_LINEAR_CLAMPED;
-		break;
-	case AL_EXPONENT_DISTANCE:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_EXPONENT;
-		break;
-	case AL_EXPONENT_DISTANCE_CLAMPED:
-		model = SCE_HEATWAVE_API_DISTANCE_MODEL_EXPONENT_CLAMPED;
-		break;
-	default:
-		AL_SET_ERROR(AL_INVALID_ENUM);
-		break;
+	ctx->beginParamUpdate();
+	ret = ctx->m_panner.setDistanceModel(distanceModel);
+	ctx->endParamUpdate();
+	if (ret != AL_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
+		return;
 	}
-
-	sceHeatWaveSetDistanceModel(model);
 }

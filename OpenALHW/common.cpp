@@ -1,9 +1,16 @@
-#include <heatwave.h>
+#include <kernel.h>
+#include <stdlib.h>
 #include <string.h>
+#include <ngs.h>
 
 #include "common.h"
 
 int32_t g_lastError = AL_NO_ERROR;
+AlMemoryAllocNGS g_alloc = malloc;
+AlMemoryAllocAlignNGS g_memalign = memalign;
+AlMemoryFreeNGS g_free = free;
+
+ALint *s_namedObjects = NULL;
 
 #define DECL(x) { #x, reinterpret_cast<void*>(x) }
 const struct {
@@ -105,8 +112,8 @@ const struct {
 	DECL(alSpeedOfSound),
 	DECL(alDistanceModel),
 
-	DECL(alcSetMp3ChannelCountNGS),
-	DECL(alcSetAt9ChannelCountNGS),
+	DECL(alcSetThreadAffinityNGS),
+	DECL(alcSetMemoryFunctionsNGS),
 };
 #undef DECL
 
@@ -253,25 +260,37 @@ ALvoid *_alGetProcAddress(const ALchar *funcName)
 	return NULL;
 }
 
-ALint _alErrorHw2Al(SceHwError error)
+ALint _alErrorNgs2Al(ALint error)
 {
 	ALint alError = AL_NO_ERROR;
 
 	switch (error) {
-	case SCE_HEATWAVE_API_ERROR:
-	case SCE_HEATWAVE_API_ERROR_HANDLE:
-	case SCE_HEATWAVE_API_ERROR_FILE:
-	case SCE_HEATWAVE_API_ERROR_NO_HARDWARE_CONTEXT:
-	case SCE_HEATWAVE_API_ERROR_INVALID_OPERATION:
-	case SCE_HEATWAVE_API_ERROR_NO_OUTPUT_DEVICE:
-	case SCE_HEATWAVE_API_ERROR_UNSUPPORTED_FORMAT:
+	case SCE_NGS_ERROR:
 		alError = AL_INVALID_OPERATION;
 		break;
-	case SCE_HEATWAVE_API_ERROR_OUT_OF_ASSETS:
-		alError = AL_OUT_OF_MEMORY;
-		break;
-	case SCE_HEATWAVE_API_ERROR_PARAM:
+	case SCE_NGS_ERROR_INVALID_PARAM:
+	case SCE_NGS_ERROR_INVALID_ALIGNMENT:
+	case SCE_NGS_ERROR_PARAM_OUT_OF_RANGE:
+	case SCE_NGS_ERROR_INVALID_VOICE_TYPE:
+	case SCE_NGS_ERROR_SYSTEM_MISMATCH:
+	case SCE_NGS_ERROR_INVALID_HANDLE:
+	case SCE_NGS_ERROR_SIZE_MISMATCH:
+	case SCE_NGS_ERROR_PARAM_TYPE_MISMATCH:
+	case SCE_NGS_ERROR_INVALID_BUFFER:
 		alError = AL_INVALID_VALUE;
+		break;
+	case SCE_NGS_ERROR_NOT_IMPL:
+	case SCE_NGS_ERROR_DEPENDENCY:
+	case SCE_NGS_ERROR_MODULE_NOT_AVAIL:
+	case SCE_NGS_ERROR_RESOURCE_LOCKED:
+	case SCE_NGS_ERROR_PATCH_NOT_AVAIL:
+	case SCE_NGS_ERROR_INVALID_STATE:
+	case SCE_NGS_ERROR_INTERNAL_PROCESSING:
+		alError = AL_INVALID_OPERATION;
+		break;
+	case SCE_NGS_ERROR_OUT_OF_ASSETS:
+	case SCE_NGS_ERROR_INTERNAL_ALLOC:
+		alError = AL_OUT_OF_MEMORY;
 		break;
 	default:
 		break;
@@ -280,23 +299,89 @@ ALint _alErrorHw2Al(SceHwError error)
 	return alError;
 }
 
-ALint _alSourceStateHw2Al(SceHwSfxState state)
+ALint _alSourceStateNgs2Al(SceUInt32 state)
 {
 	ALint alState = AL_INITIAL;
 
-	switch (state) {
-	case kSfxState_Ready:
-		alState = AL_STOPPED;
-		break;
-	case kSfxState_Playing:
-		alState = AL_PLAYING;
-		break;
-	case kSfxState_Paused:
-		alState = AL_PAUSED;
-		break;
-	default:
-		break;
+	SceUInt32 mainState = state & 0xF;
+	SceUInt32 subState = state & 0xF0;
+
+	if (mainState == SCE_NGS_VOICE_STATE_ACTIVE || mainState == SCE_NGS_VOICE_STATE_FINALIZING)
+	{
+		if (subState == SCE_NGS_VOICE_STATE_PAUSED)
+		{
+			return AL_PAUSED;
+		}
+
+		return AL_PLAYING;
 	}
 
-	return alState;
+	return AL_STOPPED;
+}
+
+ALint _alNamedObjectGet(ALint id)
+{
+	if (s_namedObjects == NULL) {
+		s_namedObjects = (ALint *)AL_MALLOC(AL_NAMED_OBJECT_MAX * 4);
+		memset(s_namedObjects, 0, AL_NAMED_OBJECT_MAX * 4);
+	}
+
+	return s_namedObjects[id];
+}
+
+ALint _alNamedObjectGetName(ALint obj)
+{
+	if (s_namedObjects == NULL) {
+		s_namedObjects = (ALint *)AL_MALLOC(AL_NAMED_OBJECT_MAX * 4);
+		memset(s_namedObjects, 0, AL_NAMED_OBJECT_MAX * 4);
+	}
+
+	for (int i = 1; i < AL_NAMED_OBJECT_MAX; i++) {
+		if (s_namedObjects[i] == obj) {
+			return i;
+		}
+	}
+
+	return 0;
+}
+
+ALvoid _alNamedObjectRemove(ALint id)
+{
+	if (s_namedObjects == NULL) {
+		s_namedObjects = (ALint *)AL_MALLOC(AL_NAMED_OBJECT_MAX * 4);
+		memset(s_namedObjects, 0, AL_NAMED_OBJECT_MAX * 4);
+	}
+
+	s_namedObjects[id] = 0;
+}
+
+ALint _alNamedObjectAdd(ALint obj)
+{
+	ALint ret = -1;
+
+	if (s_namedObjects == NULL) {
+		s_namedObjects = (ALint *)AL_MALLOC(AL_NAMED_OBJECT_MAX * 4);
+		memset(s_namedObjects, 0, AL_NAMED_OBJECT_MAX * 4);
+	}
+
+	for (int i = 1; i < AL_NAMED_OBJECT_MAX; i++) {
+		if (s_namedObjects[i] == 0) {
+			s_namedObjects[i] = obj;
+			ret = i;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+void* operator new(size_t sz)
+{
+	void* m = AL_MALLOC(sz);
+	return m;
+}
+
+void operator delete(void* m)
+{
+	AL_FREE(m);
 }

@@ -2,9 +2,14 @@
 #define AL_NAMED_OBJECT_H
 
 #include <kernel.h>
+#include <ngs.h>
 #include <vector>
 
+#include "common.h"
+
 namespace al {
+
+	class Context;
 
 	enum ObjectType
 	{
@@ -13,11 +18,31 @@ namespace al {
 		ObjectType_Source
 	};
 
+	class SourceParams
+	{
+	public:
+		SourceParams();
+
+		SceFVector4 vPosition;
+		SceFVector4 vVelocity;
+		SceFVector4 vForward;
+		float32_t   fMinDistance;
+		float32_t   fMaxDistance;
+		float32_t   fInsideAngle;
+		float32_t   fOutsideAngle;
+		float32_t   fOutsideGain;
+		float32_t   fOutsideFreq;
+		bool        bListenerRelative;
+		float32_t   fDistanceFactor;
+		float32_t   fPitchMul;
+		float32_t   fGainMul;
+	};
+
 	class NamedObject
 	{
 	public:
 
-		NamedObject() : m_type(ObjectType_None), m_magic(SCE_HEATWAVE_API_VERSION), m_initialized(AL_FALSE)
+		NamedObject() : m_type(ObjectType_None), m_magic(AL_INTERNAL_MAGIC), m_initialized(AL_FALSE)
 		{
 
 		}
@@ -37,7 +62,7 @@ namespace al {
 
 		ALboolean isValid()
 		{
-			if (m_magic == SCE_HEATWAVE_API_VERSION)
+			if (m_magic == AL_INTERNAL_MAGIC)
 				return AL_TRUE;
 
 			return AL_FALSE;
@@ -71,21 +96,18 @@ namespace al {
 		ALvoid ref();
 		ALvoid deref();
 
-		ALint frequency;
-		ALint bits;
-		ALint channels;
+		ALint m_frequency;
+		ALint m_bits;
+		ALint m_channels;
 
-		ALint data;			// the useless one
+		ALint m_data;			// the useless one
 
-		ALint size;
-		ALvoid *storage;	// the actual one
+		ALint m_size;
+		ALvoid *m_storage;	// the actual one
 
-		ALint trackSize;
-		ALchar *trackStorage;
+		ALint m_state;
 
-		ALint state;
-
-		ALint refCounter;
+		ALint m_refCounter;
 
 	};
 
@@ -93,59 +115,54 @@ namespace al {
 	{
 	public:
 
-		enum BufferConsumeState
-		{
-			BufferConsumeState_Remain,
-			BufferConsumeState_Exact,
-			BufferConsumeState_NeedMore
-		};
+		#define NGS_BUFFER_IDX_0		(1)
+		#define NGS_BUFFER_IDX_1		(2)
+		#define NGS_BUFFER_IDX_2		(4)
+		#define NGS_BUFFER_IDX_3		(8)
 
 		static ALboolean validate(Source *src);
+		static ALvoid streamCallback(const SceNgsCallbackInfo *pCallbackInfo);
 
-		Source();
+		Source(Context *ctx);
 		~Source();
 
 		ALint init();
 		ALint release();
-		ALvoid dropAllBuffers();
-		ALvoid switchToStaticBuffer(Buffer *buf);
-		ALint reloadRuntimeStream(ALint frequency, ALint channels);
+		ALint dropAllBuffers();
+		ALint bqPush(ALint frequency, ALint channels, Buffer *buf);
+		ALint switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf);
+		ALvoid update();
+		ALvoid beginParamUpdate();
+		ALvoid endParamUpdate();
+		ALint processedBufferCount();
+		ALint queuedBufferCount();
 
-		SceHwSource hwSrc;
-		SceHwSound hwSnd;
-		SceHwSfx hwSfx;
+		SceNgsHVoice m_voice;
+		SceNgsHPatch m_patch;
+		SourceParams m_params;
 
-		ALfloat minDistance;
-		ALfloat maxDistance;
-		ALfloat roloffFactor;
-		ALfloat minGain;
-		ALfloat maxGain;
-		ALfloat coneOuterGain;
-		ALfloat coneInnerAngle;
-		ALfloat coneOuterAngle;
-		ALfloat coneOuterFreq;
-		SceHwVector position;
-		SceHwVector velocity;
-		SceHwVector direction;
-		ALfloat offsetSec;
-		ALfloat offsetSample;
-		ALfloat offsetByte;
-		ALboolean positionRelative;
-		ALboolean looping;
-		ALint type;
-		Buffer *staticBuffer;
-		std::vector<Buffer*> queuedBuffers;
-		std::vector<Buffer*> processedBuffers;
-		SceKernelLwMutexWork *lock;
-		ALint streamFrequency;
-		ALint streamChannels;
+		ALint m_voiceIdx;
 
-		ALboolean needOffsetsReset;
+		ALfloat m_minGain;
+		ALfloat m_maxGain;
+		ALfloat m_offsetSec;
+		ALfloat m_offsetSample;
+		ALfloat m_offsetByte;
+		ALboolean m_looping;
+		ALint m_altype;
+		SceKernelLwMutexWork m_lock;
+
+		volatile ALint m_processedBuffers;
+		volatile ALint m_queueBuffers;
+
+		ALint m_lastPushedIdx;
+
+		ALboolean m_needOffsetsReset;
+		ALboolean m_paramsDirty;
 
 	private:
 
-		static void runtimeStreamEntry(SceHwSourceRuntimeStreamCallbackInfo *pCallbackInfo, void *pUserData, ScewHwSourceRuntimeStreamCallbackType reason);
-		static BufferConsumeState consumeBuffer(Buffer *in, ALchar **out, ALuint needBytes, ALuint *remainBytes);
+		Context *m_ctx;
 	};
 }
 

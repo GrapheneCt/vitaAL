@@ -10,7 +10,7 @@ namespace al {
 	enum DeviceType
 	{
 		DeviceType_None,
-		DeviceType_HeatWave,
+		DeviceType_NGS,
 		DeviceType_AudioIn
 	};
 
@@ -72,14 +72,14 @@ namespace al {
 		ALCvoid *m_buffer;
 	};
 
-	class DeviceHeatWave : public Device
+	class DeviceNGS : public Device
 	{
 	public:
 
 		static ALCboolean validate(ALCdevice *device);
 
-		DeviceHeatWave();
-		~DeviceHeatWave();
+		DeviceNGS();
+		~DeviceNGS();
 
 		ALCint createContext();
 		ALCvoid destroyContext();
@@ -90,19 +90,21 @@ namespace al {
 
 		ALCboolean validateAttributes(const ALCint* attrlist);
 		ALCvoid setAttributes(const ALCint* attrlist);
-		ALCvoid setMp3ChannelCount(ALCint count);
-		ALCvoid setAt9ChannelCount(ALCint count);
+		ALCvoid setThreadAffinity(ALCuint outputThreadAffinity);
+		ALCuint getOutputThreadAffinity();
+		ALCint getMaxMonoVoiceCount();
+		ALCint getMaxStereoVoiceCount();
+		ALCint getSamplingFrequency();
 
 	private:
 
-		ALCint m_mp3ChCount;
-		ALCint m_at9ChCount;
-
 		const ALCint k_maxMonoChannels = 64;
 		const ALCint k_maxStereoChannels = 64;
+
+		ALCint m_maxMonoVoices;
+		ALCint m_maxStereoVoices;
+		ALCuint m_outputThreadAffinity;
 		const ALCint m_samplingFrequency = 48000;
-		const ALCint m_monoSources = k_maxMonoChannels;
-		const ALCint m_stereoSources = k_maxStereoChannels;
 		const ALCint m_refreshRate = 60;
 		const ALCint m_sync = 0;
 	};

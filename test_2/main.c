@@ -9,8 +9,8 @@
 
 unsigned int sceLibcHeapSize = 200 * 1024 * 1024;
 
-#define BUFFER_COUNT 4096
-#define BUFFER_SIZE 4096
+#define BUFFER_COUNT 4
+#define BUFFER_SIZE 4194304
 
 int main(void)
 {
@@ -43,32 +43,23 @@ int main(void)
 		abort();
 	}
 
-	ALCboolean hasNgsExt = alcIsExtensionPresent(device, "ALC_NGS_DECODE_CHANNEL_COUNT");
+	ALCboolean hasNgsExt = alcIsExtensionPresent(device, "ALC_NGS_THREAD_AFFINITY");
 	if (!hasNgsExt)
 	{
-		printf("Didn't find ALC_NGS_DECODE_CHANNEL_COUNT. Wrong device?\n");
+		printf("Didn't find ALC_NGS_THREAD_AFFINITY. Wrong device?\n");
 		abort();
 	}
 
-	void(*setAt9Ch)(ALCdevice *dev, ALCint ch) = NULL;
-	void(*setMp3Ch)(ALCdevice *dev, ALCint ch) = NULL;
+	void(*setThreadAffinity)(ALCdevice *device, ALCuint outputThreadAffinity) = NULL;
 
-	setAt9Ch = alcGetProcAddress(device, "alcSetAt9ChannelCountNGS");
-	if (!setAt9Ch)
+	setThreadAffinity = alcGetProcAddress(device, "alcSetThreadAffinityNGS");
+	if (!setThreadAffinity)
 	{
-		printf("Didn't find alcSetAt9ChannelCountNGS\n");
+		printf("Didn't find alcSetThreadAffinityNGS\n");
 		abort();
 	}
 
-	setMp3Ch = alcGetProcAddress(device, "alcSetMp3ChannelCountNGS");
-	if (!setMp3Ch)
-	{
-		printf("Didn't find alcSetAt9ChannelCountNGS\n");
-		abort();
-	}
-
-	setAt9Ch(device, 0);
-	setMp3Ch(device, 0);
+	setThreadAffinity(device, SCE_KERNEL_CPU_MASK_USER_2);
 
 	context = alcCreateContext(device, NULL);
 	alcMakeContextCurrent(context);

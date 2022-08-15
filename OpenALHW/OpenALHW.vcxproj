@@ -50,7 +50,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SCE_PSP2_SDK_DIR)\target\lib\vdsuite;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>-lSceHeatWave;-lSceDbg_stub;-lSceAudioIn_stub;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>-lSceDbg_stub;-lSceAudioIn_stub;-lSceAudio_stub;-lSceSysmodule_stub;-lSceNgs_stub_weak;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|PSVita'">
@@ -70,8 +70,11 @@
     <Link>
       <DuplicateStripping>true</DuplicateStripping>
       <AdditionalLibraryDirectories>$(SCE_PSP2_SDK_DIR)\target\lib\vdsuite;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>-lSceHeatWave;-lSceAudioIn_stub;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>-lSceAudioIn_stub;-lSceAudio_stub;-lSceSysmodule_stub;-lSceNgs_stub_weak;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>"$(SCE_PSP2_SDK_DIR)/host_tools/build/bin/vdsuite-pubprx.exe" --strip --compress "$(LocalDebuggerCommand)" "$(LocalDebuggerCommand)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="al_buffer.cpp" />
@@ -82,6 +85,7 @@
     <ClCompile Include="context.cpp" />
     <ClCompile Include="alc.cpp" />
     <ClCompile Include="device.cpp" />
+    <ClCompile Include="panner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />
@@ -89,7 +93,9 @@
     <ClInclude Include="device.h" />
     <ClInclude Include="include\AL\al.h" />
     <ClInclude Include="include\AL\alc.h" />
+    <ClInclude Include="include\AL\alext.h" />
     <ClInclude Include="named_object.h" />
+    <ClInclude Include="panner.h" />
   </ItemGroup>
   <Import Condition="'$(ConfigurationType)' == 'Makefile' and Exists('$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets')" Project="$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

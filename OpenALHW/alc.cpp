@@ -1,4 +1,5 @@
-#include <heatwave.h>
+#include <kernel.h>
+#include <ngs.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -16,7 +17,8 @@ static ALCchar s_alcNoDeviceExtList[] =
 	"ALC_ENUMERATION_EXT "
 	"AL_EXT_EXPONENT_DISTANCE "
 	"AL_EXT_LINEAR_DISTANCE "
-	"ALC_EXT_CAPTURE";
+	"ALC_EXT_CAPTURE "
+	"ALC_NGS_MEMORY_FUNCTIONS";
 
 //Each device name will be separated by a single NULL character and the list will be terminated with two NULL characters
 static ALCchar s_alcAllDevicesList[] =
@@ -31,6 +33,8 @@ ALC_API ALCdevice* ALC_APIENTRY alcCaptureOpenDevice(const ALCchar *devicename, 
 {
 	DeviceAudioIn *dev = NULL;
 	ALCint ret = ALC_NO_ERROR;
+
+	AL_TRACE_CALL
 
 	if (devicename)
 	{
@@ -75,6 +79,8 @@ ALC_API ALCboolean ALC_APIENTRY alcCaptureCloseDevice(ALCdevice *device)
 {
 	DeviceAudioIn *dev = NULL;
 
+	AL_TRACE_CALL
+
 	if (!DeviceAudioIn::validate(device))
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
@@ -94,6 +100,8 @@ ALC_API void ALC_APIENTRY alcCaptureStart(ALCdevice *device)
 {
 	DeviceAudioIn *dev = NULL;
 
+	AL_TRACE_CALL
+
 	if (!DeviceAudioIn::validate(device))
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
@@ -110,6 +118,8 @@ ALC_API void ALC_APIENTRY alcCaptureStart(ALCdevice *device)
 ALC_API void ALC_APIENTRY alcCaptureStop(ALCdevice *device)
 {
 	DeviceAudioIn *dev = NULL;
+
+	AL_TRACE_CALL
 
 	if (!DeviceAudioIn::validate(device))
 	{
@@ -128,6 +138,8 @@ ALC_API void ALC_APIENTRY alcCaptureSamples(ALCdevice *device, ALCvoid *buffer, 
 {
 	DeviceAudioIn *dev = NULL;
 
+	AL_TRACE_CALL
+
 	if (!DeviceAudioIn::validate(device))
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
@@ -143,7 +155,9 @@ ALC_API void ALC_APIENTRY alcCaptureSamples(ALCdevice *device, ALCvoid *buffer, 
 
 ALC_API ALCdevice *ALC_APIENTRY alcOpenDevice(const ALCchar *devicename)
 {
-	DeviceHeatWave *dev = NULL;
+	DeviceNGS *dev = NULL;
+
+	AL_TRACE_CALL
 
 	if (devicename)
 	{
@@ -160,7 +174,7 @@ ALC_API ALCdevice *ALC_APIENTRY alcOpenDevice(const ALCchar *devicename)
 		return NULL;
 	}
 
-	dev = new DeviceHeatWave();
+	dev = new DeviceNGS();
 
 	s_deviceExists = ALC_TRUE;
 
@@ -169,15 +183,17 @@ ALC_API ALCdevice *ALC_APIENTRY alcOpenDevice(const ALCchar *devicename)
 
 ALC_API ALCboolean ALC_APIENTRY alcCloseDevice(ALCdevice *device)
 {
-	DeviceHeatWave *dev = NULL;
+	DeviceNGS *dev = NULL;
 
-	if (!DeviceHeatWave::validate(device))
+	AL_TRACE_CALL
+
+	if (!DeviceNGS::validate(device))
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
 		return ALC_FALSE;
 	}
 
-	dev = (DeviceHeatWave *)device;
+	dev = (DeviceNGS *)device;
 
 	delete dev;
 
@@ -188,16 +204,18 @@ ALC_API ALCboolean ALC_APIENTRY alcCloseDevice(ALCdevice *device)
 
 ALC_API ALCcontext *ALC_APIENTRY alcCreateContext(ALCdevice *device, const ALCint* attrlist)
 {
-	DeviceHeatWave *dev = NULL;
+	DeviceNGS *dev = NULL;
 	ALCint ret = ALC_NO_ERROR;
 
-	if (!DeviceHeatWave::validate(device))
+	AL_TRACE_CALL
+
+	if (!DeviceNGS::validate(device))
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
 		return NULL;
 	}
 
-	dev = (DeviceHeatWave *)device;
+	dev = (DeviceNGS *)device;
 
 	if (dev->getContext() != NULL)
 	{
@@ -228,6 +246,8 @@ ALC_API ALCcontext *ALC_APIENTRY alcCreateContext(ALCdevice *device, const ALCin
 
 ALC_API ALCboolean ALC_APIENTRY alcMakeContextCurrent(ALCcontext *context)
 {
+	AL_TRACE_CALL
+
 	if (!Context::validate(context))
 	{
 		AL_SET_ERROR(ALC_INVALID_CONTEXT);
@@ -241,6 +261,8 @@ ALC_API ALCboolean ALC_APIENTRY alcMakeContextCurrent(ALCcontext *context)
 
 ALC_API void ALC_APIENTRY alcProcessContext(ALCcontext *context)
 {
+	AL_TRACE_CALL
+
 	if (!Context::validate(context))
 	{
 		AL_SET_ERROR(ALC_INVALID_CONTEXT);
@@ -250,6 +272,8 @@ ALC_API void ALC_APIENTRY alcProcessContext(ALCcontext *context)
 
 ALC_API void ALC_APIENTRY alcSuspendContext(ALCcontext *context)
 {
+	AL_TRACE_CALL
+
 	if (!Context::validate(context))
 	{
 		AL_SET_ERROR(ALC_INVALID_CONTEXT);
@@ -260,6 +284,8 @@ ALC_API void ALC_APIENTRY alcSuspendContext(ALCcontext *context)
 ALC_API void ALC_APIENTRY alcDestroyContext(ALCcontext *context)
 {
 	Context *ctx = NULL;
+
+	AL_TRACE_CALL
 
 	if (!Context::validate(context))
 	{
@@ -276,12 +302,16 @@ ALC_API void ALC_APIENTRY alcDestroyContext(ALCcontext *context)
 
 ALC_API ALCcontext *ALC_APIENTRY alcGetCurrentContext(void)
 {
+	AL_TRACE_CALL
+
 	return s_currentContext;
 }
 
 ALC_API ALCdevice *ALC_APIENTRY alcGetContextsDevice(ALCcontext *context)
 {
 	Context *ctx = NULL;
+
+	AL_TRACE_CALL
 
 	if (!Context::validate(context))
 	{
@@ -296,6 +326,8 @@ ALC_API ALCdevice *ALC_APIENTRY alcGetContextsDevice(ALCcontext *context)
 
 ALC_API ALCenum ALC_APIENTRY alcGetError(ALCdevice *device)
 {
+	AL_TRACE_CALL
+
 	return _alGetError();
 }
 
@@ -304,6 +336,8 @@ ALC_API ALCboolean ALC_APIENTRY alcIsExtensionPresent(ALCdevice *device, const A
 	Device *dev = NULL;
 	const ALCchar *ptr = NULL;
 	size_t len = 0;
+
+	AL_TRACE_CALL
 
 	if (!extname)
 	{
@@ -341,6 +375,8 @@ ALC_API ALCboolean ALC_APIENTRY alcIsExtensionPresent(ALCdevice *device, const A
 
 ALC_API ALCvoid* ALC_APIENTRY alcGetProcAddress(ALCdevice *device, const ALCchar *funcName)
 {
+	AL_TRACE_CALL
+
 	if (!funcName)
 	{
 		AL_SET_ERROR(ALC_INVALID_VALUE);
@@ -354,6 +390,8 @@ ALC_API const ALCchar *ALC_APIENTRY alcGetString(ALCdevice *device, ALCenum para
 {
 	Device *dev = NULL;
 	const ALCchar *value = NULL;
+
+	AL_TRACE_CALL
 
 	switch (param)
 	{
@@ -424,6 +462,8 @@ ALC_API const ALCchar *ALC_APIENTRY alcGetString(ALCdevice *device, ALCenum para
 
 ALC_API ALCenum ALC_APIENTRY alcGetEnumValue(ALCdevice *device, const ALCchar *enumname)
 {
+	AL_TRACE_CALL
+
 	if (!enumname)
 	{
 		AL_SET_ERROR(ALC_INVALID_VALUE);
@@ -436,6 +476,8 @@ ALC_API ALCenum ALC_APIENTRY alcGetEnumValue(ALCdevice *device, const ALCchar *e
 ALC_API void ALC_APIENTRY alcGetIntegerv(ALCdevice *device, ALCenum param, ALCsizei size, ALCint *data)
 {
 	Device *dev = NULL;
+
+	AL_TRACE_CALL
 
 	if (size <= 0 || data == NULL)
 	{
@@ -496,56 +538,40 @@ ALC_API void ALC_APIENTRY alcGetIntegerv(ALCdevice *device, ALCenum param, ALCsi
 	}
 }
 
-AL_API void AL_APIENTRY alcSetMp3ChannelCountNGS(ALCdevice *device, ALCint count)
+AL_API void AL_APIENTRY alcSetThreadAffinityNGS(ALCdevice *device, ALCuint outputThreadAffinity)
 {
-	DeviceHeatWave *dev = NULL;
+	DeviceNGS *dev = NULL;
 
-	if (!DeviceHeatWave::validate(device))
+	AL_TRACE_CALL
+
+	if (!DeviceNGS::validate(device))
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
 		return;
 	}
 
-	if (count < 0 || count > 8)
-	{
-		AL_SET_ERROR(ALC_INVALID_VALUE);
-		return;
-	}
+	dev = (DeviceNGS *)device;
 
-	dev = (DeviceHeatWave *)device;
-
-	if (dev->getType() != DeviceType_HeatWave)
+	if (dev->getType() != DeviceType_NGS)
 	{
 		AL_SET_ERROR(ALC_INVALID_DEVICE);
 		return;
 	}
 
-	dev->setMp3ChannelCount(count);
+	dev->setThreadAffinity(outputThreadAffinity);
 }
 
-AL_API void AL_APIENTRY alcSetAt9ChannelCountNGS(ALCdevice *device, ALCint count)
+AL_API void AL_APIENTRY alcSetMemoryFunctionsNGS(AlMemoryAllocNGS alloc, AlMemoryAllocAlignNGS allocAlign, AlMemoryFreeNGS free)
 {
-	DeviceHeatWave *dev = NULL;
+	AL_TRACE_CALL
 
-	if (!DeviceHeatWave::validate(device))
-	{
-		AL_SET_ERROR(ALC_INVALID_DEVICE);
-		return;
-	}
-
-	if (count < 0 || count > 16)
+	if (alloc == NULL || free == NULL || allocAlign == NULL)
 	{
 		AL_SET_ERROR(ALC_INVALID_VALUE);
 		return;
 	}
 
-	dev = (DeviceHeatWave *)device;
-
-	if (dev->getType() != DeviceType_HeatWave)
-	{
-		AL_SET_ERROR(ALC_INVALID_DEVICE);
-		return;
-	}
-
-	dev->setAt9ChannelCount(count);
+	g_alloc = alloc;
+	g_memalign = allocAlign;
+	g_free = free;
 }

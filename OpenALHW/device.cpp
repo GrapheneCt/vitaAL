@@ -1,7 +1,8 @@
-#include <heatwave.h>
-#include <stdlib.h>
-#include <string.h>
+#include <kernel.h>
+#include <libsysmodule.h>
+#include <ngs.h>
 #include <audioin.h>
+#include <string.h>
 
 #include "common.h"
 #include "device.h"
@@ -9,7 +10,7 @@
 using namespace al;
 
 Device::Device()
-	: m_magic(SCE_HEATWAVE_API_VERSION),
+	: m_magic(AL_INTERNAL_MAGIC),
 	m_isInitialized(AL_FALSE),
 	m_type(DeviceType_None),
 	m_ctx(NULL)
@@ -24,7 +25,7 @@ Device::~Device()
 
 ALCboolean Device::isValid()
 {
-	if (m_magic == SCE_HEATWAVE_API_VERSION)
+	if (m_magic == AL_INTERNAL_MAGIC)
 		return AL_TRUE;
 
 	return AL_FALSE;
@@ -45,18 +46,18 @@ Context *Device::getContext()
 	return m_ctx;
 }
 
-ALCboolean DeviceHeatWave::validate(ALCdevice *device)
+ALCboolean DeviceNGS::validate(ALCdevice *device)
 {
-	DeviceHeatWave *dev = NULL;
+	DeviceNGS *dev = NULL;
 
 	if (!device)
 	{
 		return ALC_FALSE;
 	}
 
-	dev = (DeviceHeatWave *)device;
+	dev = (DeviceNGS *)device;
 
-	if (dev->getType() != DeviceType_HeatWave)
+	if (dev->getType() != DeviceType_NGS)
 	{
 		return ALC_FALSE;
 	}
@@ -64,29 +65,20 @@ ALCboolean DeviceHeatWave::validate(ALCdevice *device)
 	return ALC_TRUE;
 }
 
-DeviceHeatWave::DeviceHeatWave()
-	: m_at9ChCount(0),
-	m_mp3ChCount(0)
+DeviceNGS::DeviceNGS()
+	: m_maxMonoVoices(k_maxMonoChannels),
+	m_maxStereoVoices(k_maxStereoChannels),
+	m_outputThreadAffinity(SCE_KERNEL_CPU_MASK_USER_2)
 {
-	m_type = DeviceType_HeatWave;
+	m_type = DeviceType_NGS;
 }
 
-DeviceHeatWave::~DeviceHeatWave()
+DeviceNGS::~DeviceNGS()
 {
 	destroyContext();
 }
 
-ALCvoid DeviceHeatWave::setMp3ChannelCount(ALCint count)
-{
-	m_mp3ChCount = count;
-}
-
-ALCvoid DeviceHeatWave::setAt9ChannelCount(ALCint count)
-{
-	m_at9ChCount = count;
-}
-
-ALCboolean DeviceHeatWave::validateAttributes(const ALCint* attrlist)
+ALCboolean DeviceNGS::validateAttributes(const ALCint* attrlist)
 {
 	ALCint currAttr = *attrlist;
 
@@ -122,65 +114,82 @@ ALCboolean DeviceHeatWave::validateAttributes(const ALCint* attrlist)
 	return ALC_TRUE;
 }
 
-ALCvoid DeviceHeatWave::setAttributes(const ALCint* attrlist)
+ALCvoid DeviceNGS::setAttributes(const ALCint* attrlist)
 {
+	ALCint currAttr = *attrlist;
 
+	while (currAttr != 0)
+	{
+		attrlist += sizeof(ALCint);
+
+		switch (currAttr) {
+		case ALC_MONO_SOURCES:
+			m_maxMonoVoices = *attrlist;
+			break;
+		case ALC_STEREO_SOURCES:
+			m_maxStereoVoices = *attrlist;
+			break;
+		}
+
+		attrlist += sizeof(ALCint);
+		currAttr = *attrlist;
+	}
 }
 
-ALCint DeviceHeatWave::createContext()
+ALCint DeviceNGS::createContext()
 {
-	SceHwError res = SCE_HEATWAVE_API_OK;
-	SceHwInitParams iparam;
+	SceInt32 ret = SCE_OK;
 
-	memset(&iparam, 0, sizeof(SceHwInitParams));
-	iparam.bLoopBack = false;
-	iparam.nMaxChannelNumAt9 = m_at9ChCount;
-	iparam.nMaxChannelNumMp3 = m_mp3ChCount;
+	if (sceSysmoduleIsLoaded(SCE_SYSMODULE_NGS))
+	{
+		ret = sceSysmoduleLoadModule(SCE_SYSMODULE_NGS);
+		if (ret != SCE_OK)
+		{
+			return ALC_INVALID_VALUE;
+		}
+	}
 
 	m_ctx = new Context(this);
 
-	res = sceHeatWaveInit(&iparam);
-	if (SCE_HEATWAVE_API_FAILED(res))
-	{
-		delete m_ctx;
-	}
-
 	m_isInitialized = ALC_TRUE;
 	
-	return _alErrorHw2Al(res);
+	return ALC_NO_ERROR;
 }
 
-ALCvoid DeviceHeatWave::destroyContext()
+ALCvoid DeviceNGS::destroyContext()
 {
-	if (m_isInitialized == AL_TRUE)
-	{
-		sceHeatWaveRelease();
-	}
-
 	if (m_ctx != NULL)
 	{
 		delete m_ctx;
 	}
 
+	if (m_isInitialized == AL_TRUE)
+	{
+		if (!sceSysmoduleIsLoaded(SCE_SYSMODULE_NGS))
+		{
+			sceSysmoduleUnloadModule(SCE_SYSMODULE_NGS);
+		}
+	}
+
 	m_isInitialized = ALC_FALSE;
 }
 
-const ALCchar *DeviceHeatWave::getExtensionList()
+const ALCchar *DeviceNGS::getExtensionList()
 {
-	return "ALC_NGS_DECODE_CHANNEL_COUNT";
+	return "ALC_NGS_THREAD_AFFINITY";
 }
 
-const ALCchar *DeviceHeatWave::getName()
+const ALCchar *DeviceNGS::getName()
 {
 	return AL_DEVICE_NAME;
 }
 
-ALCint DeviceHeatWave::getAttributeCount()
+ALCint DeviceNGS::getAttributeCount()
 {
 	return 5;
 }
 
-ALCint DeviceHeatWave::getAttribute(ALCenum attr)
+ALCint DeviceNGS::getAttribute(ALCenum attr)
 {
 	ALCint ret = -1000;
 
@@ -189,13 +198,13 @@ ALCint DeviceHeatWave::getAttribute(ALCenum attr)
 		ret = m_samplingFrequency;
 		break;
 	case ALC_MONO_SOURCES:
-		ret = m_monoSources;
+		ret = m_maxMonoVoices;
 		break;
 	case ALC_REFRESH:
 		ret = m_refreshRate;
 		break;
 	case ALC_STEREO_SOURCES:
-		ret = m_stereoSources;
+		ret = m_maxStereoVoices;
 		break;
 	case ALC_SYNC:
 		ret = m_sync;
@@ -203,6 +212,31 @@ ALCint DeviceHeatWave::getAttribute(ALCenum attr)
 	}
 
 	return ret;
+}
+
+ALCvoid DeviceNGS::setThreadAffinity(ALCuint outputThreadAffinity)
+{
+	m_outputThreadAffinity = outputThreadAffinity;
+}
+
+ALCuint DeviceNGS::getOutputThreadAffinity()
+{
+	return m_outputThreadAffinity;
+}
+
+ALCint DeviceNGS::getMaxMonoVoiceCount()
+{
+	return m_maxMonoVoices;
+}
+
+ALCint DeviceNGS::getMaxStereoVoiceCount()
+{
+	return m_maxStereoVoices;
+}
+
+ALCint DeviceNGS::getSamplingFrequency()
+{
+	return m_samplingFrequency;
 }
 
 ALCboolean DeviceAudioIn::validate(ALCdevice *device)
@@ -317,7 +351,7 @@ ALCboolean DeviceAudioIn::captureSamples(ALCvoid *buffer, ALCsizei samples)
 
 ALCint DeviceAudioIn::createContext()
 {
-	m_buffer = malloc(m_buffersize);
+	m_buffer = AL_MALLOC(m_buffersize);
 	if (!m_buffer)
 	{
 		return ALC_OUT_OF_MEMORY;
@@ -333,7 +367,7 @@ ALCvoid DeviceAudioIn::destroyContext()
 	if (m_isInitialized == ALC_TRUE)
 	{
 		stop();
-		free(m_buffer);
+		AL_FREE(m_buffer);
 	}
 
 	m_isInitialized = ALC_FALSE;

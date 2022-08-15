@@ -1,6 +1,6 @@
-#include <heatwave.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 #include <sce_atomic.h>
 
 #include "common.h"
@@ -30,16 +30,14 @@ ALboolean Buffer::validate(Buffer *buf)
 }
 
 Buffer::Buffer()
-	: frequency(0),
-	bits(0),
-	channels(0),
-	data(0),
-	size(0),
-	storage(NULL),
-	state(AL_UNUSED),
-	refCounter(0),
-	trackSize(0),
-	trackStorage(NULL)
+	: m_frequency(0),
+	m_bits(0),
+	m_channels(0),
+	m_data(0),
+	m_size(0),
+	m_storage(NULL),
+	m_state(AL_UNUSED),
+	m_refCounter(0)
 {
 	m_type = ObjectType_Buffer;
 }
@@ -53,31 +51,28 @@ ALint Buffer::init()
 {
 	m_initialized = AL_TRUE;
 
-	storage = malloc(256);
-	if (storage == NULL)
+	m_storage = AL_MALLOC(64);
+	if (m_storage == NULL)
 	{
 		return AL_OUT_OF_MEMORY;
 	}
 
-	memset(storage, 0, 256);
+	memset(m_storage, 0, 64);
 
-	frequency = 44100;
-	channels = 1;
-	data = (ALint)storage;
-	size = 256;
-	trackSize = size;
-	trackStorage = (ALchar *)storage;
+	m_frequency = 44100;
+	m_channels = 1;
+	m_data = (ALint)m_storage;
+	m_size = 64;
 
 	return AL_NO_ERROR;
 }
 
 ALint Buffer::release()
 {
-	if (storage != NULL)
+	if (m_storage != NULL)
 	{
-		free(storage);
-		storage = NULL;
-		trackStorage = NULL;
+		AL_FREE(m_storage);
+		m_storage = NULL;
 	}
 
 	m_initialized = AL_FALSE;
@@ -87,15 +82,15 @@ ALint Buffer::release()
 
 ALvoid Buffer::ref()
 {
-	sceAtomicIncrement32AcqRel(&refCounter);
-	state = AL_PENDING;
+	sceAtomicIncrement32AcqRel(&m_refCounter);
+	m_state = AL_PENDING;
 }
 
 ALvoid Buffer::deref()
 {
-	if (sceAtomicDecrement32AcqRel(&refCounter) == 1)
+	if (sceAtomicDecrement32AcqRel(&m_refCounter) == 1)
 	{
-		state = AL_PROCESSED;
+		m_state = AL_PROCESSED;
 	}
 }
 
@@ -104,6 +99,8 @@ AL_API void AL_APIENTRY alGenBuffers(ALsizei n, ALuint* buffers)
 	Buffer *pBuf = NULL;
 	ALint ret = AL_NO_ERROR;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -128,7 +125,9 @@ AL_API void AL_APIENTRY alGenBuffers(ALsizei n, ALuint* buffers)
 			return;
 		}
 
-		buffers[i] = (ALuint)pBuf;
+		ctx->m_bufferStack.push_back(pBuf);
+
+		buffers[i] = _alNamedObjectAdd((ALint)pBuf);
 	}
 }
 
@@ -137,6 +136,8 @@ AL_API void AL_APIENTRY alDeleteBuffers(ALsizei n, const ALuint* buffers)
 	Buffer *pBuf = NULL;
 	ALint ret = AL_NO_ERROR;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -152,7 +153,7 @@ AL_API void AL_APIENTRY alDeleteBuffers(ALsizei n, const ALuint* buffers)
 
 	for (int i = 0; i < n; i++)
 	{
-		pBuf = (Buffer *)buffers[i];
+		pBuf = (Buffer *)_alNamedObjectGet(buffers[i]);
 
 		if (!Buffer::validate(pBuf))
 		{
@@ -160,7 +161,7 @@ AL_API void AL_APIENTRY alDeleteBuffers(ALsizei n, const ALuint* buffers)
 			return;
 		}
 
-		if (pBuf->state != AL_UNUSED)
+		if (pBuf->m_state != AL_UNUSED)
 		{
 			AL_SET_ERROR(AL_INVALID_OPERATION);
 			return;
@@ -173,6 +174,10 @@ AL_API void AL_APIENTRY alDeleteBuffers(ALsizei n, const ALuint* buffers)
 			return;
 		}
 
+		_alNamedObjectRemove(buffers[i]);
+
+		ctx->m_bufferStack.erase(std::remove(ctx->m_bufferStack.begin(), ctx->m_bufferStack.end(), pBuf), ctx->m_bufferStack.end());
+
 		delete pBuf;
 	}
 }
@@ -181,13 +186,15 @@ AL_API ALboolean AL_APIENTRY alIsBuffer(ALuint bid)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return AL_FALSE;
 	}
 
-	if (Buffer::validate((Buffer *)bid))
+	if (Buffer::validate((Buffer *)_alNamedObjectGet(bid)))
 	{
 		return AL_TRUE;
 	}
@@ -200,13 +207,15 @@ AL_API void AL_APIENTRY alBufferData(ALuint bid, ALenum format, const ALvoid* da
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -214,7 +223,7 @@ AL_API void AL_APIENTRY alBufferData(ALuint bid, ALenum format, const ALvoid* da
 		return;
 	}
 
-	if (buf->state != AL_UNUSED)
+	if (buf->m_state != AL_UNUSED)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
@@ -238,40 +247,37 @@ AL_API void AL_APIENTRY alBufferData(ALuint bid, ALenum format, const ALvoid* da
 		return;
 	}
 
-	if (buf->storage != NULL)
+	if (buf->m_storage != NULL)
 	{
-		free(buf->storage);
-		buf->storage = NULL;
-		buf->trackStorage = NULL;
+		AL_FREE(buf->m_storage);
+		buf->m_storage = NULL;
 	}
 
 	switch (format)
 	{
 	case AL_FORMAT_MONO16:
-		buf->bits = 16;
-		buf->channels = 1;
+		buf->m_bits = 16;
+		buf->m_channels = 1;
 		break;
 	case AL_FORMAT_STEREO16:
-		buf->bits = 16;
-		buf->channels = 2;
+		buf->m_bits = 16;
+		buf->m_channels = 2;
 		break;
 	}
 
-	buf->storage = malloc(size);
+	buf->m_storage = AL_MALLOC(size);
 
-	if (buf->storage == NULL)
+	if (buf->m_storage == NULL)
 	{
 		AL_SET_ERROR(AL_OUT_OF_MEMORY);
 		return;
 	}
 
-	buf->size = size;
-	buf->data = (ALint)data;
-	buf->frequency = freq;
-	buf->trackSize = buf->size;
-	buf->trackStorage = (ALchar *)buf->storage;
+	buf->m_size = size;
+	buf->m_data = (ALint)data;
+	buf->m_frequency = freq;
 
-	memcpy(buf->storage, data, size);
+	memcpy(buf->m_storage, data, size);
 }
 
 AL_API void AL_APIENTRY alBufferf(ALuint bid, ALenum param, ALfloat value)
@@ -279,13 +285,15 @@ AL_API void AL_APIENTRY alBufferf(ALuint bid, ALenum param, ALfloat value)
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -301,13 +309,15 @@ AL_API void AL_APIENTRY alBuffer3f(ALuint bid, ALenum param, ALfloat value1, ALf
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -323,13 +333,15 @@ AL_API void AL_APIENTRY alBufferfv(ALuint bid, ALenum param, const ALfloat* valu
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -345,13 +357,15 @@ AL_API void AL_APIENTRY alBufferi(ALuint bid, ALenum param, ALint value)
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -367,13 +381,15 @@ AL_API void AL_APIENTRY alBuffer3i(ALuint bid, ALenum param, ALint value1, ALint
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -389,13 +405,15 @@ AL_API void AL_APIENTRY alBufferiv(ALuint bid, ALenum param, const ALint* values
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -411,6 +429,8 @@ AL_API void AL_APIENTRY alGetBufferf(ALuint bid, ALenum param, ALfloat* value)
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -423,7 +443,7 @@ AL_API void AL_APIENTRY alGetBufferf(ALuint bid, ALenum param, ALfloat* value)
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -439,6 +459,8 @@ AL_API void AL_APIENTRY alGetBuffer3f(ALuint bid, ALenum param, ALfloat* value1,
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -451,7 +473,7 @@ AL_API void AL_APIENTRY alGetBuffer3f(ALuint bid, ALenum param, ALfloat* value1,
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -467,6 +489,8 @@ AL_API void AL_APIENTRY alGetBufferfv(ALuint bid, ALenum param, ALfloat* values)
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -479,7 +503,7 @@ AL_API void AL_APIENTRY alGetBufferfv(ALuint bid, ALenum param, ALfloat* values)
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -495,6 +519,8 @@ AL_API void AL_APIENTRY alGetBufferi(ALuint bid, ALenum param, ALint* value)
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -507,7 +533,7 @@ AL_API void AL_APIENTRY alGetBufferi(ALuint bid, ALenum param, ALint* value)
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -518,16 +544,16 @@ AL_API void AL_APIENTRY alGetBufferi(ALuint bid, ALenum param, ALint* value)
 	switch (param)
 	{
 	case AL_FREQUENCY:
-		*value = buf->frequency;
+		*value = buf->m_frequency;
 		break;
 	case AL_BITS:
-		*value = buf->bits;
+		*value = buf->m_bits;
 		break;
 	case AL_CHANNELS:
-		*value = buf->channels;
+		*value = buf->m_channels;
 		break;
 	case AL_SIZE:
-		*value = buf->size;
+		*value = buf->m_size;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -539,6 +565,8 @@ AL_API void AL_APIENTRY alGetBuffer3i(ALuint bid, ALenum param, ALint* value1, A
 {
 	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -552,7 +580,7 @@ AL_API void AL_APIENTRY alGetBuffer3i(ALuint bid, ALenum param, ALint* value1, A
 		return;
 	}
 
-	buf = (Buffer *)bid;
+	buf = (Buffer *)_alNamedObjectGet(bid);
 
 	if (!Buffer::validate(buf))
 	{
@@ -565,6 +593,8 @@ AL_API void AL_APIENTRY alGetBuffer3i(ALuint bid, ALenum param, ALint* value1, A
 
 AL_API void AL_APIENTRY alGetBufferiv(ALuint bid, ALenum param, ALint* values)
 {
+	AL_TRACE_CALL
+
 	switch (param)
 	{
 	case AL_FREQUENCY:

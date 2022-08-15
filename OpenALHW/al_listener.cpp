@@ -1,4 +1,5 @@
-#include <heatwave.h>
+#include <kernel.h>
+#include <ngs.h>
 #include <string.h>
 
 #include "common.h"
@@ -11,6 +12,8 @@ AL_API void AL_APIENTRY alListenerf(ALenum param, ALfloat value)
 	ALint ret = AL_NO_ERROR;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -20,13 +23,14 @@ AL_API void AL_APIENTRY alListenerf(ALenum param, ALfloat value)
 	switch (param)
 	{
 	case AL_GAIN:
-		ret = _alErrorHw2Al(sceHeatWaveSetListener(ctx->listenerPosition, ctx->listenerVelocity, ctx->listenerForward, ctx->listenerUp, value));
+		ctx->beginParamUpdate();
+		ret = ctx->m_panner.setListenerGain(value);
+		ctx->endParamUpdate();
 		if (ret != AL_NO_ERROR)
 		{
 			AL_SET_ERROR(ret);
 			return;
 		}
-		ctx->listenerGain = value;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -37,8 +41,10 @@ AL_API void AL_APIENTRY alListenerf(ALenum param, ALfloat value)
 AL_API void AL_APIENTRY alListener3f(ALenum param, ALfloat value1, ALfloat value2, ALfloat value3)
 {
 	ALint ret = AL_NO_ERROR;
-	SceHwVector value;
+	SceFVector4 value;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -49,28 +55,30 @@ AL_API void AL_APIENTRY alListener3f(ALenum param, ALfloat value1, ALfloat value
 	switch (param)
 	{
 	case AL_POSITION:
-		value.fX = value1;
-		value.fY = value2;
-		value.fZ = value3;
-		ret = _alErrorHw2Al(sceHeatWaveSetListener(value, ctx->listenerVelocity, ctx->listenerForward, ctx->listenerUp, ctx->listenerGain));
+		value.x = value1;
+		value.y = value2;
+		value.z = value3;
+		ctx->beginParamUpdate();
+		ret = ctx->m_panner.setListenerPosition(value);
+		ctx->endParamUpdate();
 		if (ret != AL_NO_ERROR)
 		{
 			AL_SET_ERROR(ret);
 			return;
 		}
-		ctx->listenerPosition = value;
 		break;
 	case AL_VELOCITY:
-		value.fX = value1;
-		value.fY = value2;
-		value.fZ = value3;
-		ret = _alErrorHw2Al(sceHeatWaveSetListener(ctx->listenerPosition, value, ctx->listenerForward, ctx->listenerUp, ctx->listenerGain));
+		value.x = value1;
+		value.y = value2;
+		value.z = value3;
+		ctx->beginParamUpdate();
+		ret = ctx->m_panner.setListenerVelocity(value);
+		ctx->endParamUpdate();
 		if (ret != AL_NO_ERROR)
 		{
 			AL_SET_ERROR(ret);
 			return;
 		}
-		ctx->listenerVelocity = value;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -81,9 +89,11 @@ AL_API void AL_APIENTRY alListener3f(ALenum param, ALfloat value1, ALfloat value
 AL_API void AL_APIENTRY alListenerfv(ALenum param, const ALfloat* values)
 {
 	ALint ret = AL_NO_ERROR;
-	SceHwVector value1;
-	SceHwVector value2;
+	SceFVector4 value1;
+	SceFVector4 value2;
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (values == NULL)
 	{
@@ -111,20 +121,20 @@ AL_API void AL_APIENTRY alListenerfv(ALenum param, const ALfloat* values)
 	switch (param)
 	{
 	case AL_ORIENTATION:
-		value1.fX = values[0];
-		value1.fY = values[1];
-		value1.fZ = values[2];
-		value2.fX = values[3];
-		value2.fY = values[4];
-		value2.fZ = values[5];
-		ret = _alErrorHw2Al(sceHeatWaveSetListener(ctx->listenerPosition, ctx->listenerVelocity, value1, value2, ctx->listenerGain));
+		value1.x = values[0];
+		value1.y = values[1];
+		value1.z = values[2];
+		value2.x = values[3];
+		value2.y = values[4];
+		value2.z = values[5];
+		ctx->beginParamUpdate();
+		ret = ctx->m_panner.setListenerOrientation(value1, value2);
+		ctx->endParamUpdate();
 		if (ret != AL_NO_ERROR)
 		{
 			AL_SET_ERROR(ret);
 			return;
 		}
-		ctx->listenerForward = value1;
-		ctx->listenerUp = value2;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -134,17 +144,23 @@ AL_API void AL_APIENTRY alListenerfv(ALenum param, const ALfloat* values)
 
 AL_API void AL_APIENTRY alListeneri(ALenum param, ALint value)
 {
+	AL_TRACE_CALL
+
 	alListenerf(param, (ALfloat)value);
 }
 
 AL_API void AL_APIENTRY alListener3i(ALenum param, ALint value1, ALint value2, ALint value3)
 {
+	AL_TRACE_CALL
+
 	alListener3f(param, (ALfloat)value1, (ALfloat)value2, (ALfloat)value3);
 }
 
 AL_API void AL_APIENTRY alListeneriv(ALenum param, const ALint* values)
 {
 	ALfloat fvalues[6];
+
+	AL_TRACE_CALL
 
 	if (values == NULL)
 	{
@@ -180,6 +196,8 @@ AL_API void AL_APIENTRY alGetListenerf(ALenum param, ALfloat* value)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
 
+	AL_TRACE_CALL
+
 	if (ctx == NULL)
 	{
 		AL_SET_ERROR(AL_INVALID_OPERATION);
@@ -195,7 +213,7 @@ AL_API void AL_APIENTRY alGetListenerf(ALenum param, ALfloat* value)
 	switch (param)
 	{
 	case AL_GAIN:
-		*value = ctx->listenerGain;
+		*value = ctx->m_panner.m_gain;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -206,6 +224,8 @@ AL_API void AL_APIENTRY alGetListenerf(ALenum param, ALfloat* value)
 AL_API void AL_APIENTRY alGetListener3f(ALenum param, ALfloat *value1, ALfloat *value2, ALfloat *value3)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (ctx == NULL)
 	{
@@ -222,14 +242,14 @@ AL_API void AL_APIENTRY alGetListener3f(ALenum param, ALfloat *value1, ALfloat *
 	switch (param)
 	{
 	case AL_POSITION:
-		*value1 = ctx->listenerPosition.fX;
-		*value2 = ctx->listenerPosition.fY;
-		*value3 = ctx->listenerPosition.fZ;
+		*value1 = ctx->m_panner.m_position.x;
+		*value2 = ctx->m_panner.m_position.y;
+		*value3 = ctx->m_panner.m_position.z;
 		break;
 	case AL_VELOCITY:
-		*value1 = ctx->listenerVelocity.fX;
-		*value2 = ctx->listenerVelocity.fY;
-		*value3 = ctx->listenerVelocity.fZ;
+		*value1 = ctx->m_panner.m_velocity.x;
+		*value2 = ctx->m_panner.m_velocity.y;
+		*value3 = ctx->m_panner.m_velocity.z;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -240,6 +260,8 @@ AL_API void AL_APIENTRY alGetListener3f(ALenum param, ALfloat *value1, ALfloat *
 AL_API void AL_APIENTRY alGetListenerfv(ALenum param, ALfloat* values)
 {
 	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
 
 	if (values == NULL)
 	{
@@ -267,12 +289,12 @@ AL_API void AL_APIENTRY alGetListenerfv(ALenum param, ALfloat* values)
 	switch (param)
 	{
 	case AL_ORIENTATION:
-		values[0] = ctx->listenerForward.fX;
-		values[1] = ctx->listenerForward.fY;
-		values[2] = ctx->listenerForward.fZ;
-		values[3] = ctx->listenerUp.fX;
-		values[4] = ctx->listenerUp.fY;
-		values[5] = ctx->listenerUp.fZ;
+		values[0] = ctx->m_panner.m_forward.x;
+		values[1] = ctx->m_panner.m_forward.y;
+		values[2] = ctx->m_panner.m_forward.z;
+		values[3] = ctx->m_panner.m_up.x;
+		values[4] = ctx->m_panner.m_up.y;
+		values[5] = ctx->m_panner.m_up.z;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -283,6 +305,8 @@ AL_API void AL_APIENTRY alGetListenerfv(ALenum param, ALfloat* values)
 AL_API void AL_APIENTRY alGetListeneri(ALenum param, ALint* value)
 {
 	ALfloat ret = 0;
+
+	AL_TRACE_CALL
 
 	if (value == NULL)
 	{
@@ -298,6 +322,8 @@ AL_API void AL_APIENTRY alGetListeneri(ALenum param, ALint* value)
 AL_API void AL_APIENTRY alGetListener3i(ALenum param, ALint *value1, ALint *value2, ALint *value3)
 {
 	ALfloat ret[3];
+
+	AL_TRACE_CALL
 
 	if (value1 == NULL || value2 == NULL || value3 == NULL)
 	{
@@ -315,6 +341,8 @@ AL_API void AL_APIENTRY alGetListener3i(ALenum param, ALint *value1, ALint *valu
 AL_API void AL_APIENTRY alGetListeneriv(ALenum param, ALint* values)
 {
 	ALfloat fret[6];
+
+	AL_TRACE_CALL
 
 	if (values == NULL)
 	{
