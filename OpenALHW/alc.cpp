@@ -17,6 +17,7 @@ static ALCchar s_alcNoDeviceExtList[] =
 	"ALC_ENUMERATION_EXT "
 	"AL_EXT_EXPONENT_DISTANCE "
 	"AL_EXT_LINEAR_DISTANCE "
+	"AL_SOFT_deferred_updates "
 	"ALC_EXT_CAPTURE "
 	"ALC_NGS_MEMORY_FUNCTIONS";
 
@@ -261,6 +262,9 @@ ALC_API ALCboolean ALC_APIENTRY alcMakeContextCurrent(ALCcontext *context)
 
 ALC_API void ALC_APIENTRY alcProcessContext(ALCcontext *context)
 {
+	Context *ctx = NULL;
+	ALCint ret = ALC_NO_ERROR;
+
 	AL_TRACE_CALL
 
 	if (!Context::validate(context))
@@ -268,15 +272,36 @@ ALC_API void ALC_APIENTRY alcProcessContext(ALCcontext *context)
 		AL_SET_ERROR(ALC_INVALID_CONTEXT);
 		return;
 	}
+
+	ctx = (Context *)context;
+
+	ret = ctx->resume();
+	if (ret != ALC_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
+		return;
+	}
 }
 
 ALC_API void ALC_APIENTRY alcSuspendContext(ALCcontext *context)
 {
+	Context *ctx = NULL;
+	ALCint ret = ALC_NO_ERROR;
+
 	AL_TRACE_CALL
 
 	if (!Context::validate(context))
 	{
 		AL_SET_ERROR(ALC_INVALID_CONTEXT);
+		return;
+	}
+
+	ctx = (Context *)context;
+
+	ret = ctx->suspend();
+	if (ret != ALC_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
 		return;
 	}
 }
@@ -537,6 +562,12 @@ ALC_API void ALC_APIENTRY alcGetIntegerv(ALCdevice *device, ALCenum param, ALCsi
 		break;
 	}
 }
+
+/*
+*
+* NGS
+*
+*/
 
 AL_API void AL_APIENTRY alcSetThreadAffinityNGS(ALCdevice *device, ALCuint outputThreadAffinity)
 {

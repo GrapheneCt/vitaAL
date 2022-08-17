@@ -112,6 +112,9 @@ const struct {
 	DECL(alSpeedOfSound),
 	DECL(alDistanceModel),
 
+	DECL(alDeferUpdatesSOFT),
+	DECL(alProcessUpdatesSOFT),
+
 	DECL(alcSetThreadAffinityNGS),
 	DECL(alcSetMemoryFunctionsNGS),
 };
@@ -228,6 +231,8 @@ constexpr struct {
 	DECL(AL_LINEAR_DISTANCE_CLAMPED),
 	DECL(AL_EXPONENT_DISTANCE),
 	DECL(AL_EXPONENT_DISTANCE_CLAMPED),
+
+	DECL(AL_DEFERRED_UPDATES_SOFT),
 };
 #undef DECL
 

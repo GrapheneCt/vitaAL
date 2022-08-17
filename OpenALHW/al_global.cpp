@@ -422,3 +422,51 @@ AL_API void AL_APIENTRY alDistanceModel(ALenum distanceModel)
 		return;
 	}
 }
+
+/*
+*
+* OpenAL-Soft
+*
+*/
+
+AL_API void AL_APIENTRY alDeferUpdatesSOFT(void)
+{
+	ALint ret = AL_NO_ERROR;
+	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
+
+	if (ctx == NULL)
+	{
+		AL_SET_ERROR(AL_INVALID_OPERATION);
+		return;
+	}
+
+	ret = ctx->suspend();
+	if (ret != AL_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
+		return;
+	}
+}
+
+AL_API void AL_APIENTRY alProcessUpdatesSOFT(void)
+{
+	ALint ret = AL_NO_ERROR;
+	Context *ctx = (Context *)alcGetCurrentContext();
+
+	AL_TRACE_CALL
+
+	if (ctx == NULL)
+	{
+		AL_SET_ERROR(AL_INVALID_OPERATION);
+		return;
+	}
+
+	ret = ctx->resume();
+	if (ret != AL_NO_ERROR)
+	{
+		AL_SET_ERROR(ret);
+		return;
+	}
+}

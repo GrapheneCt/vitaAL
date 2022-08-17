@@ -292,6 +292,16 @@ ALvoid Context::markAllAsDirty()
 	}
 }
 
+ALint Context::suspend()
+{
+	return _alErrorNgs2Al(sceNgsSystemLock(m_system));
+}
+
+ALint Context::resume()
+{
+	return _alErrorNgs2Al(sceNgsSystemUnlock(m_system));
+}
+
 ALCboolean Context::validate(ALCcontext *context)
 {
 	Context *ctx = NULL;

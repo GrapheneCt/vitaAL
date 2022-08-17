@@ -29,8 +29,8 @@ namespace al {
 		ALvoid beginParamUpdate();
 		ALvoid endParamUpdate();
 		ALvoid markAllAsDirty();
-
-		const ALenum m_distanceModel = AL_EXPONENT_DISTANCE;
+		ALint suspend();
+		ALint resume();
 
 		float32_t m_listenerGain;
 		SceFVector4 m_listenerPosition;
