@@ -241,7 +241,7 @@ AL_API void AL_APIENTRY alBufferData(ALuint bid, ALenum format, const ALvoid* da
 		return;
 	}
 
-	if (freq > 48000)
+	if (freq > 192000)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
 		return;
