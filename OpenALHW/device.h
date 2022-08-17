@@ -9,9 +9,9 @@ namespace al {
 
 	enum DeviceType
 	{
-		DeviceType_None,
-		DeviceType_NGS,
-		DeviceType_AudioIn
+		DeviceType_None = AL_INTERNAL_MAGIC - 4,
+		DeviceType_NGS = AL_INTERNAL_MAGIC - 5,
+		DeviceType_AudioIn = AL_INTERNAL_MAGIC - 6
 	};
 
 	class Device

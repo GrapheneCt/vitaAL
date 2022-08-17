@@ -3,14 +3,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctrl.h>
 
 #include <AL/al.h>
 #include <AL/alc.h>
 
 unsigned int sceLibcHeapSize = 200 * 1024 * 1024;
 
+#define TEST_LOOP
+#define TEST_PANNER
+//#define TEST_STATES
+
 #define BUFFER_COUNT 4
 #define BUFFER_SIZE 4194304
+
+int st = 0;
 
 int main(void)
 {
@@ -24,6 +31,9 @@ int main(void)
 	audioFile = malloc(audioFileSize);
 	sceIoRead(fd, audioFile, audioFileSize);
 	sceIoClose(fd);
+
+	printf("file sz %u\n", audioFileSize);
+	printf("buf  sz %u\n", BUFFER_SIZE * BUFFER_COUNT);
 
 	returnCode = sceKernelLoadStartModule("app0:module/OpenALHW.suprx", 0, NULL, 0, NULL, NULL);
 	if (returnCode <= 0)
@@ -100,6 +110,49 @@ int main(void)
 		abort();
 	}
 
+#ifdef TEST_LOOP
+	alSourcei(source, AL_LOOPING, 1);
+	if ((error = alGetError()) != AL_NO_ERROR)
+	{
+		printf("alSourcei failed: %s", alGetString(error));
+		abort();
+	}
+#endif
+
+#ifdef TEST_PANNER
+	alListener3f(AL_POSITION, 0.0f, 0.0f, 0.0f);
+	if ((error = alGetError()) != AL_NO_ERROR)
+	{
+		printf("alSource3f failed: %s", alGetString(error));
+		abort();
+	}
+
+	alSourcef(source, AL_CONE_INNER_ANGLE, 90.0f);
+	if ((error = alGetError()) != AL_NO_ERROR)
+	{
+		printf("alSourcef failed: %s", alGetString(error));
+		abort();
+	}
+
+	alSourcef(source, AL_CONE_OUTER_ANGLE, 180.0f);
+	if ((error = alGetError()) != AL_NO_ERROR)
+	{
+		printf("alSourcef failed: %s", alGetString(error));
+		abort();
+	}
+
+	alSourcef(source, AL_MAX_DISTANCE, 10.0f);
+	if ((error = alGetError()) != AL_NO_ERROR)
+	{
+		printf("alSourcef failed: %s", alGetString(error));
+		abort();
+	}
+
+	SceCtrlData cdata;
+	SceFVector4 pos = {0.0f};
+	sceCtrlSetSamplingMode(SCE_CTRL_MODE_DIGITALANALOG);
+#endif
+
 	alSourcePlay(source);
 
 	ALint state = AL_STOPPED;
@@ -107,11 +160,45 @@ int main(void)
 
 	while (1) {
 
+#ifdef TEST_STATES
 		alGetSourcei(source, AL_SOURCE_STATE, &state);
 		alGetSourcei(source, AL_BUFFERS_PROCESSED, &procBuffers);
 
 		printf("src state: 0x%X\n", state);
 		printf("src processed buffers: %d\n", procBuffers);
+#endif
+
+#ifdef TEST_PANNER
+
+		sceCtrlPeekBufferPositive(0, &cdata, 1);
+
+		if (cdata.lx > 140 + 40)
+		{
+			pos.x += 0.01f;
+		}
+		else if (cdata.lx < 140 - 40)
+		{
+			pos.x -= 0.01f;
+		}
+
+		if (cdata.ly > 140 + 40)
+		{
+			pos.y += 0.01f;
+		}
+		else if (cdata.ly < 140 - 40)
+		{
+			pos.y -= 0.01f;
+		}
+
+		alListener3f(AL_POSITION, pos.x, pos.y, pos.z);
+		if ((error = alGetError()) != AL_NO_ERROR)
+		{
+			printf("alSource3f failed: %s", alGetString(error));
+			abort();
+		}
+
+		sceClibPrintf("listener pos: (%.02f, %.02f, %.02f)\n", pos.x, pos.y, pos.z);
+#endif
 
 		sceKernelDelayThread(10000);
 	}

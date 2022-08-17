@@ -13,9 +13,9 @@ namespace al {
 
 	enum ObjectType
 	{
-		ObjectType_None,
-		ObjectType_Buffer,
-		ObjectType_Source
+		ObjectType_None = AL_INTERNAL_MAGIC - 1,
+		ObjectType_Buffer = AL_INTERNAL_MAGIC - 2,
+		ObjectType_Source = AL_INTERNAL_MAGIC - 3
 	};
 
 	class SourceParams
@@ -156,6 +156,7 @@ namespace al {
 		volatile ALint m_queueBuffers;
 
 		ALint m_lastPushedIdx;
+		ALint m_curIdx;
 
 		ALboolean m_needOffsetsReset;
 		ALboolean m_paramsDirty;

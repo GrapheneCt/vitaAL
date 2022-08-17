@@ -67,12 +67,15 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 	SceNgsPlayerParams *pPcmParams;
 	Source *src = (Source *)pCallbackInfo->pUserData;
 	ALint bufferFlag = 0;
+	SceInt32 idx = 0;
 
 	if (pCallbackInfo->nCallbackData == SCE_NGS_PLAYER_SWAPPED_BUFFER)
 	{
 		if ((volatile ALboolean)src->m_looping != AL_TRUE)
 		{
-			bufferFlag = (1 << pCallbackInfo->nCallbackData2);
+			idx = pCallbackInfo->nCallbackData2;
+
+			bufferFlag = (1 << idx);
 
 			ret = sceNgsVoiceLockParams(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 			if (ret != SCE_NGS_OK)
@@ -82,10 +85,13 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 			}
 
 			pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
-			pPcmParams->buffs[pCallbackInfo->nCallbackData2].pBuffer = NULL;
-			pPcmParams->buffs[pCallbackInfo->nCallbackData2].nNumBytes = 0;
-			pPcmParams->buffs[pCallbackInfo->nCallbackData2].nLoopCount = 0;
-			pPcmParams->buffs[pCallbackInfo->nCallbackData2].nNextBuff = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
+
+			src->m_curIdx = pPcmParams->buffs[idx].nNextBuff;
+
+			pPcmParams->buffs[idx].pBuffer = NULL;
+			pPcmParams->buffs[idx].nNumBytes = 0;
+			pPcmParams->buffs[idx].nLoopCount = 0;
+			pPcmParams->buffs[idx].nNextBuff = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
 
 			ret = sceNgsVoiceUnlockParams(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
 			if (ret != SCE_NGS_OK)
@@ -97,6 +103,34 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 			src->m_queueBuffers &= ~bufferFlag;
 			src->m_processedBuffers |= bufferFlag;
 		}
+	}
+	else if (pCallbackInfo->nCallbackData == SCE_NGS_PLAYER_END_OF_DATA)
+	{
+		bufferFlag = (1 << src->m_curIdx);
+
+		ret = sceNgsVoiceLockParams(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+		if (ret != SCE_NGS_OK)
+		{
+			AL_WARNING("Error has occured in streamCallback: 0x%08X\n", ret);
+			return;
+		}
+
+		pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+		pPcmParams->buffs[src->m_curIdx].pBuffer = NULL;
+		pPcmParams->buffs[src->m_curIdx].nNumBytes = 0;
+		pPcmParams->buffs[src->m_curIdx].nLoopCount = 0;
+		pPcmParams->buffs[src->m_curIdx].nNextBuff = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
+
+		ret = sceNgsVoiceUnlockParams(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
+		if (ret != SCE_NGS_OK)
+		{
+			AL_WARNING("Error has occured in streamCallback: 0x%08X\n", ret);
+			return;
+		}
+
+		src->m_queueBuffers &= ~bufferFlag;
+		src->m_processedBuffers |= bufferFlag;
+		src->m_curIdx = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
 	}
 }
 
@@ -115,7 +149,8 @@ Source::Source(Context *ctx)
 	m_paramsDirty(AL_FALSE),
 	m_queueBuffers(0),
 	m_processedBuffers(0),
-	m_lastPushedIdx(3)
+	m_lastPushedIdx(3),
+	m_curIdx(0)
 {
 	m_ctx = ctx;
 	m_type = ObjectType_Source;
@@ -256,7 +291,7 @@ ALint Source::dropAllBuffers()
 
 	sceNgsVoiceSetModuleCallback(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_NO_CALLBACK, NULL);
 
-	sceNgsVoiceKeyOff(m_voice);
+	sceNgsVoiceKill(m_voice);
 
 	m_offsetSec = 0.0f;
 	m_offsetSample = 0.0f;
@@ -269,6 +304,9 @@ ALint Source::dropAllBuffers()
 	}
 
 	pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+
+	pPcmParams->nStartBuffer = 0;
+	pPcmParams->nStartByte = 0;
 
 	for (int i = 0; i < SCE_NGS_PLAYER_MAX_BUFFERS; i++)
 	{
@@ -300,10 +338,15 @@ ALint Source::dropAllBuffers()
 		return _alErrorNgs2Al(ret);
 	}
 
+	beginParamUpdate();
+
 	m_altype = AL_UNDETERMINED;
 	m_lastPushedIdx = 3;
+	m_curIdx = 0;
 	sceAtomicStore32AcqRel(&m_processedBuffers, 0);
 	sceAtomicStore32AcqRel(&m_queueBuffers, 0);
+
+	endParamUpdate();
 
 	return AL_NO_ERROR;
 }
@@ -342,9 +385,6 @@ ALint Source::switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf)
 		pPcmParams->nChannelMap[1] = SCE_NGS_PLAYER_RIGHT_CHANNEL;
 	}
 
-	pPcmParams->nStartBuffer = 0;
-	pPcmParams->nStartByte = 0;
-
 	pPcmParams->buffs[0].pBuffer = buf->m_storage;
 	pPcmParams->buffs[0].nNumBytes = buf->m_size;
 	if (m_looping == AL_TRUE)
@@ -364,6 +404,7 @@ ALint Source::switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf)
 	}
 
 	m_altype = AL_STATIC;
+	m_curIdx = 0;
 
 	return AL_NO_ERROR;
 }
@@ -1546,6 +1587,8 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 	SceNgsVoiceInfo info;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
+	SceNgsBufferInfo   bufferInfo;
+	SceNgsPlayerParams *pPcmParams;
 
 	AL_TRACE_CALL
 
@@ -1588,6 +1631,28 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 			src->m_needOffsetsReset = AL_FALSE;
 		}
 
+		if (src->m_altype == AL_STREAMING)
+		{
+			ret = _alErrorNgs2Al(sceNgsVoiceLockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo));
+			if (ret != AL_NO_ERROR)
+			{
+				AL_SET_ERROR(ret);
+				return;
+			}
+
+			pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+
+			pPcmParams->nStartBuffer = src->m_curIdx;
+			pPcmParams->nStartByte = 0;
+
+			ret = _alErrorNgs2Al(sceNgsVoiceUnlockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER));
+			if (ret != AL_NO_ERROR)
+			{
+				AL_SET_ERROR(ret);
+				return;
+			}
+		}
+
 		ret = _alErrorNgs2Al(sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, Source::streamCallback, src));
 		if (ret != AL_NO_ERROR)
 		{
@@ -1622,7 +1687,7 @@ AL_API void AL_APIENTRY alSourceStop(ALuint sid)
 
 	sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_NO_CALLBACK, NULL);
 
-	sceNgsVoiceKeyOff(src->m_voice);
+	sceNgsVoiceKill(src->m_voice);
 
 	src->m_offsetSec = 0.0f;
 	src->m_offsetSample = 0.0f;
@@ -1631,8 +1696,11 @@ AL_API void AL_APIENTRY alSourceStop(ALuint sid)
 
 AL_API void AL_APIENTRY alSourceRewind(ALuint sid)
 {
+	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
+	SceNgsBufferInfo   bufferInfo;
+	SceNgsPlayerParams *pPcmParams;
 
 	AL_TRACE_CALL
 
@@ -1650,7 +1718,9 @@ AL_API void AL_APIENTRY alSourceRewind(ALuint sid)
 		return;
 	}
 
-	AL_WARNING("alSourceRewind is not implemented\n");
+	sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_NO_CALLBACK, NULL);
+
+	sceNgsVoiceKill(src->m_voice);
 
 	src->m_offsetSec = 0.0f;
 	src->m_offsetSample = 0.0f;
