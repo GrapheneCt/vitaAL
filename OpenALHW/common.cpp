@@ -269,6 +269,11 @@ ALint _alErrorNgs2Al(ALint error)
 {
 	ALint alError = AL_NO_ERROR;
 
+	if (error != SCE_NGS_OK)
+	{
+		//sceClibPrintf("NGS error 0x%08X\n", error);
+	}
+
 	switch (error) {
 	case SCE_NGS_ERROR:
 		alError = AL_INVALID_OPERATION;
@@ -306,8 +311,6 @@ ALint _alErrorNgs2Al(ALint error)
 
 ALint _alSourceStateNgs2Al(SceUInt32 state)
 {
-	ALint alState = AL_INITIAL;
-
 	SceUInt32 mainState = state & 0xF;
 	SceUInt32 subState = state & 0xF0;
 

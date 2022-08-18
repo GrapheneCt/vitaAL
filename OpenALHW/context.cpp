@@ -255,8 +255,6 @@ SceInt32 Context::updateThread(SceSize argSize, void *pArgBlock)
 {
 	Context *ctx = *(Context **)pArgBlock;
 	DeviceNGS *ngsDev = (DeviceNGS *)ctx->getDevice();
-	SceInt32 ret = SCE_NGS_OK;
-	SceNgsHVoice voice;
 
 	while ((volatile ALCboolean)ctx->m_outActive)
 	{

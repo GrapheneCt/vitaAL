@@ -77,7 +77,7 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 
 			bufferFlag = (1 << idx);
 
-			ret = sceNgsVoiceLockParams(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+			ret = _alLockNgsResource(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 			if (ret != SCE_NGS_OK)
 			{
 				AL_WARNING("Error has occured in streamCallback: 0x%08X\n", ret);
@@ -88,7 +88,6 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 
 			src->m_curIdx = pPcmParams->buffs[idx].nNextBuff;
 
-			pPcmParams->buffs[idx].pBuffer = NULL;
 			pPcmParams->buffs[idx].nNumBytes = 0;
 			pPcmParams->buffs[idx].nLoopCount = 0;
 			pPcmParams->buffs[idx].nNextBuff = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
@@ -108,7 +107,7 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 	{
 		bufferFlag = (1 << src->m_curIdx);
 
-		ret = sceNgsVoiceLockParams(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+		ret = _alLockNgsResource(pCallbackInfo->hVoiceHandle, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 		if (ret != SCE_NGS_OK)
 		{
 			AL_WARNING("Error has occured in streamCallback: 0x%08X\n", ret);
@@ -116,7 +115,6 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 		}
 
 		pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
-		pPcmParams->buffs[src->m_curIdx].pBuffer = NULL;
 		pPcmParams->buffs[src->m_curIdx].nNumBytes = 0;
 		pPcmParams->buffs[src->m_curIdx].nLoopCount = 0;
 		pPcmParams->buffs[src->m_curIdx].nNextBuff = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
@@ -130,7 +128,7 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 
 		src->m_queueBuffers &= ~bufferFlag;
 		src->m_processedBuffers |= bufferFlag;
-		src->m_curIdx = SCE_NGS_PLAYER_NO_NEXT_BUFFER;
+		src->m_curIdx = 0;
 	}
 }
 
@@ -285,7 +283,6 @@ ALint Source::release()
 ALint Source::dropAllBuffers()
 {
 	SceInt32 ret = SCE_NGS_OK;
-	Buffer *buf = NULL;
 	SceNgsBufferInfo   bufferInfo;
 	SceNgsPlayerParams *pPcmParams;
 
@@ -297,13 +294,16 @@ ALint Source::dropAllBuffers()
 	m_offsetSample = 0.0f;
 	m_offsetByte = 0.0f;
 
-	ret = sceNgsVoiceLockParams(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+	ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 	if (ret != SCE_NGS_OK)
 	{
 		return _alErrorNgs2Al(ret);
 	}
 
 	pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+
+	pPcmParams->fPlaybackFrequency = 0;
+	pPcmParams->nChannels = 1;
 
 	pPcmParams->nStartBuffer = 0;
 	pPcmParams->nStartByte = 0;
@@ -354,7 +354,6 @@ ALint Source::dropAllBuffers()
 ALint Source::switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf)
 {
 	SceInt32 ret = SCE_NGS_OK;
-	Buffer *obuf = NULL;
 	SceNgsBufferInfo   bufferInfo;
 	SceNgsPlayerParams *pPcmParams;
 
@@ -364,7 +363,7 @@ ALint Source::switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf)
 		return ret;
 	}
 
-	ret = sceNgsVoiceLockParams(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+	ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 	if (ret != SCE_NGS_OK)
 	{
 		return _alErrorNgs2Al(ret);
@@ -405,6 +404,7 @@ ALint Source::switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf)
 
 	m_altype = AL_STATIC;
 	m_curIdx = 0;
+	buf->ref();
 
 	return AL_NO_ERROR;
 }
@@ -440,7 +440,7 @@ ALvoid Source::update()
 		volumeMatrix[0] *= m_params.fGainMul;
 		volumeMatrix[1] *= m_params.fGainMul;
 
-		ret = sceNgsVoiceLockParams(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+		ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 		if (ret != SCE_NGS_OK)
 		{
 			goto updateFilter;
@@ -503,7 +503,7 @@ ALvoid Source::update()
 
 	updateFilter:
 
-		ret = sceNgsVoiceLockParams(m_voice, SCE_NGS_SIMPLE_VOICE_SEND_1_FILTER, SCE_NGS_FILTER_PARAMS_STRUCT_ID, &bufferInfo);
+		ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_SEND_1_FILTER, SCE_NGS_FILTER_PARAMS_STRUCT_ID, &bufferInfo);
 		if (ret != SCE_NGS_OK)
 		{
 			goto updatePatch;
@@ -621,7 +621,7 @@ ALint Source::bqPush(ALint frequency, ALint channels, Buffer *buf)
 		nextPushIdx = 0;
 	}
 
-	ret = sceNgsVoiceLockParams(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+	ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 	if (ret != SCE_NGS_OK)
 	{
 		return _alErrorNgs2Al(ret);
@@ -672,6 +672,8 @@ ALint Source::bqPush(ALint frequency, ALint channels, Buffer *buf)
 	{
 		return _alErrorNgs2Al(ret);
 	}
+
+	return AL_NO_ERROR;
 }
 
 AL_API void AL_APIENTRY alGenSources(ALsizei n, ALuint* sources)
@@ -778,7 +780,6 @@ AL_API ALboolean AL_APIENTRY alIsSource(ALuint sid)
 
 AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 {
-	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
@@ -912,7 +913,6 @@ AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 AL_API void AL_APIENTRY alSource3f(ALuint sid, ALenum param, ALfloat value1, ALfloat value2, ALfloat value3)
 {
 	SceFVector4 value;
-	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
@@ -1136,6 +1136,9 @@ AL_API void AL_APIENTRY alGetSourcef(ALuint sid, ALenum param, ALfloat* value)
 	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
+	SceNgsPlayerStates state;
+	SceNgsBufferInfo   bufferInfo;
+	SceNgsPlayerParams *pPcmParams;
 
 	AL_TRACE_CALL
 
@@ -1192,16 +1195,60 @@ AL_API void AL_APIENTRY alGetSourcef(ALuint sid, ALenum param, ALfloat* value)
 		*value = src->m_params.fOutsideAngle;
 		break;
 	case AL_SEC_OFFSET:
-		AL_WARNING("AL_SEC_OFFSET is not implemented\n");
-		*value = src->m_offsetSec;
+
+		ALint freq = 0;
+		ALint ch = 0;
+
+		ret = _alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
+		}
+
+		pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+		freq = (ALint)pPcmParams->fPlaybackFrequency;
+		ch = pPcmParams->nChannels;
+
+		ret = sceNgsVoiceUnlockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
+		}
+
+		if (freq == 0)
+		{
+			AL_SET_ERROR(AL_INVALID_OPERATION);
+			return;
+		}
+
+		ret = sceNgsVoiceGetStateData(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, &state, sizeof(SceNgsPlayerStates));
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
+		}
+
+		*value = state.nBytesConsumedSinceKeyOn / 2 * ch * freq;
 		break;
 	case AL_SAMPLE_OFFSET:
-		AL_WARNING("AL_SAMPLE_OFFSET is not implemented\n");
-		*value = src->m_offsetSample;
+		ret = sceNgsVoiceGetStateData(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, &state, sizeof(SceNgsPlayerStates));
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
+		}
+		*value = state.nSamplesGeneratedSinceKeyOn;
 		break;
 	case AL_BYTE_OFFSET:
-		AL_WARNING("AL_BYTE_OFFSET is not implemented\n");
-		*value = src->m_offsetByte;
+		ret = sceNgsVoiceGetStateData(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, &state, sizeof(SceNgsPlayerStates));
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
+		}
+		*value = state.nBytesConsumedSinceKeyOn;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -1361,7 +1408,7 @@ AL_API void AL_APIENTRY alGetSourcei(ALuint sid, ALenum param, ALint* value)
 			SceNgsBufferInfo   bufferInfo;
 			SceNgsPlayerParams *pPcmParams;
 
-			ret = sceNgsVoiceLockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+			ret = _alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 			if (ret != SCE_NGS_OK)
 			{
 				AL_SET_ERROR(_alErrorNgs2Al(ret));
@@ -1633,7 +1680,7 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 
 		if (src->m_altype == AL_STREAMING)
 		{
-			ret = _alErrorNgs2Al(sceNgsVoiceLockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo));
+			ret = _alErrorNgs2Al(_alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo));
 			if (ret != AL_NO_ERROR)
 			{
 				AL_SET_ERROR(ret);
@@ -1696,11 +1743,8 @@ AL_API void AL_APIENTRY alSourceStop(ALuint sid)
 
 AL_API void AL_APIENTRY alSourceRewind(ALuint sid)
 {
-	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
-	SceNgsBufferInfo   bufferInfo;
-	SceNgsPlayerParams *pPcmParams;
 
 	AL_TRACE_CALL
 
@@ -1807,6 +1851,12 @@ AL_API void AL_APIENTRY alSourceQueueBuffers(ALuint sid, ALsizei numEntries, con
 		if (buf == NULL)
 		{
 			buf = (Buffer *)_alNamedObjectGet(bids[i]);
+			if (buf == NULL)
+			{
+				AL_SET_ERROR(AL_INVALID_VALUE);
+				return;
+			}
+
 			frequency = buf->m_frequency;
 			bits = buf->m_bits;
 			channels = buf->m_channels;
@@ -1814,6 +1864,11 @@ AL_API void AL_APIENTRY alSourceQueueBuffers(ALuint sid, ALsizei numEntries, con
 		else
 		{
 			buf = (Buffer *)_alNamedObjectGet(bids[i]);
+			if (buf == NULL)
+			{
+				AL_SET_ERROR(AL_INVALID_VALUE);
+				return;
+			}
 			if (frequency != buf->m_frequency || bits != buf->m_bits || channels != buf->m_channels)
 			{
 				AL_SET_ERROR(AL_INVALID_VALUE);
@@ -1847,7 +1902,6 @@ AL_API void AL_APIENTRY alSourceQueueBuffers(ALuint sid, ALsizei numEntries, con
 AL_API void AL_APIENTRY alSourceUnqueueBuffers(ALuint sid, ALsizei numEntries, ALuint *bids)
 {
 	Source *src = NULL;
-	Buffer *buf = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 	SceInt32 ret = SCE_NGS_OK;
 	SceNgsBufferInfo   bufferInfo;
@@ -1891,7 +1945,7 @@ AL_API void AL_APIENTRY alSourceUnqueueBuffers(ALuint sid, ALsizei numEntries, A
 	ALint flagToCheck = -1;
 	ALint outCount = 0;
 
-	ret = sceNgsVoiceLockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+	ret = _alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 	if (ret != SCE_NGS_OK)
 	{
 		AL_SET_ERROR(_alErrorNgs2Al(ret));

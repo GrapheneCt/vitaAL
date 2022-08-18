@@ -1,5 +1,6 @@
 #include <ngs.h>
 #include <libdbg.h>
+#include <kernel.h>
 #include <stdio.h>
 
 #include "AL/al.h"
@@ -43,7 +44,7 @@ extern AlMemoryFreeNGS g_free;
 
 #define AL_INVALID_NGS_HANDLE (0x0)
 
-ALint _alErrorNgs2Al(int error);
+ALint _alErrorNgs2Al(ALint error);
 ALvoid *_alGetProcAddress(const ALchar *funcName);
 ALint _alGetError();
 ALCenum _alGetEnumValue(const ALCchar *enumname);
@@ -52,5 +53,19 @@ ALint _alNamedObjectGet(ALint id);
 ALvoid _alNamedObjectRemove(ALint id);
 ALint _alNamedObjectAdd(ALint obj);
 ALint _alNamedObjectGetName(ALint obj);
+
+inline SceInt32 _alLockNgsResource(SceNgsHVoice hVoiceHandle, const SceUInt32 uModule, const SceNgsParamsID uParamsInterfaceId, SceNgsBufferInfo* pParamsBuffer)
+{
+	SceInt32 ret = sceNgsVoiceLockParams(hVoiceHandle, uModule, uParamsInterfaceId, pParamsBuffer);
+	while (ret == SCE_NGS_ERROR_RESOURCE_LOCKED)
+	{
+		ret = sceNgsVoiceLockParams(hVoiceHandle, uModule, uParamsInterfaceId, pParamsBuffer);
+		sceKernelDelayThread(200);
+	}
+
+	return ret;
+}
+
+#define _alTryLockNgsResource sceNgsVoiceLockParams
 
 #endif

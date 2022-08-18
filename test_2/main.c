@@ -183,11 +183,11 @@ int main(void)
 
 		if (cdata.ly > 140 + 40)
 		{
-			pos.y += 0.01f;
+			pos.z += 0.01f;
 		}
 		else if (cdata.ly < 140 - 40)
 		{
-			pos.y -= 0.01f;
+			pos.z -= 0.01f;
 		}
 
 		alListener3f(AL_POSITION, pos.x, pos.y, pos.z);

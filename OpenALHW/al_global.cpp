@@ -402,7 +402,6 @@ AL_API void AL_APIENTRY alSpeedOfSound(ALfloat value)
 AL_API void AL_APIENTRY alDistanceModel(ALenum distanceModel)
 {
 	ALint ret = AL_NO_ERROR;
-	ALint model = AL_NONE;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
 	AL_TRACE_CALL

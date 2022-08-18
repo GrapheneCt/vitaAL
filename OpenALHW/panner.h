@@ -13,7 +13,7 @@ namespace al {
 	{
 	public:
 
-		typedef enum SpeakerID
+		enum SpeakerID
 		{
 			Speaker_FL = 0,
 			Speaker_FR = 1,
