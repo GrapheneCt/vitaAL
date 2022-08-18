@@ -149,14 +149,14 @@ Context::Context(Device *device)
 		return;
 	}
 
-	m_ngsOutThread = sceKernelCreateThread("OpenALHW::NGSOut", outputThread, 64, SCE_KERNEL_4KiB, 0, ngsDev->getOutputThreadAffinity(), NULL);
+	m_ngsOutThread = sceKernelCreateThread("OpenALHW::NGSOut", outputThread, SCE_KERNEL_HIGHEST_PRIORITY_USER, SCE_KERNEL_4KiB, 0, ngsDev->getOutputThreadAffinity(), NULL);
 	if (m_ngsOutThread <= 0)
 	{
 		AL_SET_ERROR(ALC_INVALID_VALUE);
 		return;
 	}
 
-	m_ngsUpdateThread = sceKernelCreateThread("OpenALHW::NGSUpdate", updateThread, SCE_KERNEL_DEFAULT_PRIORITY, SCE_KERNEL_4KiB, 0, SCE_KERNEL_CPU_MASK_USER_ALL, NULL);
+	m_ngsUpdateThread = sceKernelCreateThread("OpenALHW::NGSUpdate", updateThread, SCE_KERNEL_HIGHEST_PRIORITY_USER + 1, SCE_KERNEL_4KiB, 0, ngsDev->getUpdateThreadAffinity(), NULL);
 	if (m_ngsOutThread <= 0)
 	{
 		AL_SET_ERROR(ALC_INVALID_VALUE);

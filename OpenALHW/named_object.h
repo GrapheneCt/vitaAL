@@ -136,6 +136,7 @@ namespace al {
 		ALvoid endParamUpdate();
 		ALint processedBufferCount();
 		ALint queuedBufferCount();
+		ALint seek(ALfloat value, ALint type);
 
 		SceNgsHVoice m_voice;
 		SceNgsHPatch m_patch;
@@ -145,9 +146,6 @@ namespace al {
 
 		ALfloat m_minGain;
 		ALfloat m_maxGain;
-		ALfloat m_offsetSec;
-		ALfloat m_offsetSample;
-		ALfloat m_offsetByte;
 		ALboolean m_looping;
 		ALint m_altype;
 		SceKernelLwMutexWork m_lock;
@@ -158,7 +156,7 @@ namespace al {
 		ALint m_lastPushedIdx;
 		ALint m_curIdx;
 
-		ALboolean m_needOffsetsReset;
+		ALboolean m_afterSeek;
 		ALboolean m_paramsDirty;
 
 	private:

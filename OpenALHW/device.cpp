@@ -68,7 +68,8 @@ ALCboolean DeviceNGS::validate(ALCdevice *device)
 DeviceNGS::DeviceNGS()
 	: m_maxMonoVoices(k_maxMonoChannels),
 	m_maxStereoVoices(k_maxStereoChannels),
-	m_outputThreadAffinity(SCE_KERNEL_CPU_MASK_USER_2)
+	m_outputThreadAffinity(SCE_KERNEL_CPU_MASK_USER_2),
+	m_updateThreadAffinity(SCE_KERNEL_CPU_MASK_USER_1)
 {
 	m_type = DeviceType_NGS;
 }
@@ -84,7 +85,7 @@ ALCboolean DeviceNGS::validateAttributes(const ALCint* attrlist)
 
 	while (currAttr != 0)
 	{
-		attrlist += sizeof(ALCint);
+		attrlist += 1;
 
 		switch (currAttr) {
 		case ALC_MONO_SOURCES:
@@ -107,7 +108,7 @@ ALCboolean DeviceNGS::validateAttributes(const ALCint* attrlist)
 			break;
 		}
 
-		attrlist += sizeof(ALCint);
+		attrlist += 1;
 		currAttr = *attrlist;
 	}
 
@@ -120,7 +121,7 @@ ALCvoid DeviceNGS::setAttributes(const ALCint* attrlist)
 
 	while (currAttr != 0)
 	{
-		attrlist += sizeof(ALCint);
+		attrlist += 1;
 
 		switch (currAttr) {
 		case ALC_MONO_SOURCES:
@@ -131,7 +132,7 @@ ALCvoid DeviceNGS::setAttributes(const ALCint* attrlist)
 			break;
 		}
 
-		attrlist += sizeof(ALCint);
+		attrlist += 1;
 		currAttr = *attrlist;
 	}
 }
@@ -214,14 +215,20 @@ ALCint DeviceNGS::getAttribute(ALCenum attr)
 	return ret;
 }
 
-ALCvoid DeviceNGS::setThreadAffinity(ALCuint outputThreadAffinity)
+ALCvoid DeviceNGS::setThreadAffinity(ALCuint outputThreadAffinity, ALCuint updateThreadAffinity)
 {
 	m_outputThreadAffinity = outputThreadAffinity;
+	m_updateThreadAffinity = updateThreadAffinity;
 }
 
 ALCuint DeviceNGS::getOutputThreadAffinity()
 {
 	return m_outputThreadAffinity;
+}
+
+ALCuint DeviceNGS::getUpdateThreadAffinity()
+{
+	return m_updateThreadAffinity;
 }
 
 ALCint DeviceNGS::getMaxMonoVoiceCount()

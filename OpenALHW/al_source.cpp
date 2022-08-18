@@ -69,6 +69,8 @@ ALvoid Source::streamCallback(const SceNgsCallbackInfo *pCallbackInfo)
 	ALint bufferFlag = 0;
 	SceInt32 idx = 0;
 
+	//sceClibPrintf("pb of 0x%08X with type 0x%X reported %d\n", src, src->m_altype, pCallbackInfo->nCallbackData);
+
 	if (pCallbackInfo->nCallbackData == SCE_NGS_PLAYER_SWAPPED_BUFFER)
 	{
 		if ((volatile ALboolean)src->m_looping != AL_TRUE)
@@ -138,12 +140,9 @@ Source::Source(Context *ctx)
 	m_voiceIdx(-1),
 	m_minGain(0.0f),
 	m_maxGain(1.0f),
-	m_offsetSec(0.0f),
-	m_offsetSample(0.0f),
-	m_offsetByte(0.0f),
 	m_altype(AL_UNDETERMINED),
 	m_looping(AL_FALSE),
-	m_needOffsetsReset(AL_FALSE),
+	m_afterSeek(AL_FALSE),
 	m_paramsDirty(AL_FALSE),
 	m_queueBuffers(0),
 	m_processedBuffers(0),
@@ -290,10 +289,6 @@ ALint Source::dropAllBuffers()
 
 	sceNgsVoiceKill(m_voice);
 
-	m_offsetSec = 0.0f;
-	m_offsetSample = 0.0f;
-	m_offsetByte = 0.0f;
-
 	ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
 	if (ret != SCE_NGS_OK)
 	{
@@ -405,6 +400,7 @@ ALint Source::switchToStaticBuffer(ALint frequency, ALint channels, Buffer *buf)
 	m_altype = AL_STATIC;
 	m_curIdx = 0;
 	buf->ref();
+	sceAtomicStore32AcqRel(&m_queueBuffers, NGS_BUFFER_IDX_0);
 
 	return AL_NO_ERROR;
 }
@@ -431,9 +427,9 @@ ALvoid Source::update()
 	float32_t lowpassCutoff = 1.0f;
 	float32_t dopplerShift = 1.0f;
 
-	if (m_paramsDirty) {
+	sceKernelLockLwMutex(&m_lock, 1, NULL);
 
-		sceKernelLockLwMutex(&m_lock, 1, NULL);
+	if (m_paramsDirty == AL_TRUE) {
 
 		m_ctx->m_panner.calculate(&m_params, 2, volumeMatrix, &dopplerShift, &lowpassCutoff);
 
@@ -548,8 +544,9 @@ ALvoid Source::update()
 	updateEnd:
 
 		m_paramsDirty = AL_FALSE;
-		sceKernelUnlockLwMutex(&m_lock, 1);
 	}
+
+	sceKernelUnlockLwMutex(&m_lock, 1);
 }
 
 ALint Source::processedBufferCount()
@@ -676,6 +673,66 @@ ALint Source::bqPush(ALint frequency, ALint channels, Buffer *buf)
 	return AL_NO_ERROR;
 }
 
+ALint Source::seek(ALfloat value, ALint type)
+{
+	SceInt32 ret = SCE_NGS_OK;
+	SceNgsBufferInfo   bufferInfo;
+	SceNgsPlayerParams *pPcmParams;
+
+	ALint seekBytes = 0;
+	ALint bufIdx = m_curIdx;
+	ALint flags = sceAtomicLoad32AcqRel(&m_queueBuffers);
+
+	ret = _alLockNgsResource(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+	if (ret != SCE_NGS_OK)
+	{
+		return _alErrorNgs2Al(ret);
+	}
+
+	pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+
+	switch (type)
+	{
+	case AL_BYTE_OFFSET:
+		seekBytes = (ALint)value;
+		break;
+	case AL_SAMPLE_OFFSET:
+		seekBytes = (ALint)value * 2 * pPcmParams->nChannels;
+		break;
+	case AL_SEC_OFFSET:
+		seekBytes = (ALint)pPcmParams->fPlaybackFrequency * (ALint)value * 2 * pPcmParams->nChannels;
+		break;
+	}
+
+	do
+	{
+		if (pPcmParams->buffs[bufIdx].nNumBytes < seekBytes)
+		{
+			seekBytes -= pPcmParams->buffs[bufIdx].nNumBytes;
+			bufIdx++;
+			if (bufIdx > 3)
+			{
+				bufIdx = 0;
+			}
+		}
+		else
+		{
+			break;
+		}
+	} while ((flags & (1 << bufIdx)) && (bufIdx != m_curIdx));
+
+	pPcmParams->nStartBuffer = bufIdx;
+	pPcmParams->nStartByte = seekBytes;
+
+	ret = sceNgsVoiceUnlockParams(m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
+	if (ret != SCE_NGS_OK)
+	{
+		return _alErrorNgs2Al(ret);
+	}
+
+	return AL_NO_ERROR;
+}
+
 AL_API void AL_APIENTRY alGenSources(ALsizei n, ALuint* sources)
 {
 	Source *pSrc = NULL;
@@ -780,6 +837,7 @@ AL_API ALboolean AL_APIENTRY alIsSource(ALuint sid)
 
 AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 {
+	ALint ret = AL_NO_ERROR;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
 
@@ -887,22 +945,31 @@ AL_API void AL_APIENTRY alSourcef(ALuint sid, ALenum param, ALfloat value)
 		src->endParamUpdate();
 		break;
 	case AL_SEC_OFFSET:
-		src->beginParamUpdate();
-		AL_WARNING("AL_SEC_OFFSET is not implemented\n");
-		src->m_offsetSec = value;
-		src->endParamUpdate();
+		ret = src->seek(value, AL_SEC_OFFSET);
+		if (ret != AL_NO_ERROR)
+		{
+			AL_SET_ERROR(ret);
+			return;
+		}
+		src->m_afterSeek = AL_TRUE;
 		break;
 	case AL_SAMPLE_OFFSET:
-		src->beginParamUpdate();
-		AL_WARNING("AL_SAMPLE_OFFSET is not implemented\n");
-		src->m_offsetSample = value;
-		src->endParamUpdate();
+		ret = src->seek(value, AL_SAMPLE_OFFSET);
+		if (ret != AL_NO_ERROR)
+		{
+			AL_SET_ERROR(ret);
+			return;
+		}
+		src->m_afterSeek = AL_TRUE;
 		break;
 	case AL_BYTE_OFFSET:
-		src->beginParamUpdate();
-		AL_WARNING("AL_BYTE_OFFSET is not implemented\n");
-		src->m_offsetByte = value;
-		src->endParamUpdate();
+		ret = src->seek(value, AL_BYTE_OFFSET);
+		if (ret != AL_NO_ERROR)
+		{
+			AL_SET_ERROR(ret);
+			return;
+		}
+		src->m_afterSeek = AL_TRUE;
 		break;
 	default:
 		AL_SET_ERROR(AL_INVALID_ENUM);
@@ -1346,7 +1413,7 @@ AL_API void AL_APIENTRY alGetSourcefv(ALuint sid, ALenum param, ALfloat* values)
 
 AL_API void AL_APIENTRY alGetSourcei(ALuint sid, ALenum param, ALint* value)
 {
-	ALint ret = AL_NO_ERROR;
+	SceInt32 ret = SCE_NGS_OK;
 	ALfloat fret = 0.0f;
 	Source *src = NULL;
 	SceNgsVoiceInfo info;
@@ -1440,10 +1507,10 @@ AL_API void AL_APIENTRY alGetSourcei(ALuint sid, ALenum param, ALint* value)
 		}
 		break;
 	case AL_SOURCE_STATE:
-		ret = _alErrorNgs2Al(sceNgsVoiceGetInfo(src->m_voice, &info));
-		if (ret != AL_NO_ERROR)
+		ret = sceNgsVoiceGetInfo(src->m_voice, &info);
+		if (ret != SCE_NGS_OK)
 		{
-			AL_SET_ERROR(ret);
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
 			return;
 		}
 		*value = _alSourceStateNgs2Al(info.uVoiceState);
@@ -1630,7 +1697,7 @@ AL_API void AL_APIENTRY alSourcePausev(ALsizei ns, const ALuint *sids)
 
 AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 {
-	ALint ret = AL_NO_ERROR;
+	SceInt32 ret = SCE_NGS_OK;
 	SceNgsVoiceInfo info;
 	Source *src = NULL;
 	Context *ctx = (Context *)alcGetCurrentContext();
@@ -1653,10 +1720,10 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 		return;
 	}
 
-	ret = _alErrorNgs2Al(sceNgsVoiceGetInfo(src->m_voice, &info));
-	if (ret != AL_NO_ERROR)
+	ret = sceNgsVoiceGetInfo(src->m_voice, &info);
+	if (ret != SCE_NGS_OK)
 	{
-		AL_SET_ERROR(ret);
+		AL_SET_ERROR(_alErrorNgs2Al(ret));
 		return;
 	}
 
@@ -1666,44 +1733,49 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 	}
 	else
 	{
-		if (src->m_needOffsetsReset == AL_FALSE)
-		{
-			src->m_needOffsetsReset = AL_TRUE;
-		}
-		else
-		{
-			src->m_offsetSec = 0.0f;
-			src->m_offsetSample = 0.0f;
-			src->m_offsetByte = 0.0f;
-			src->m_needOffsetsReset = AL_FALSE;
-		}
-
 		if (src->m_altype == AL_STREAMING)
 		{
-			ret = _alErrorNgs2Al(_alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo));
-			if (ret != AL_NO_ERROR)
+			ret = _alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+			if (ret != SCE_NGS_OK)
 			{
-				AL_SET_ERROR(ret);
+				AL_SET_ERROR(_alErrorNgs2Al(ret));
 				return;
 			}
 
 			pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
 
-			pPcmParams->nStartBuffer = src->m_curIdx;
-			pPcmParams->nStartByte = 0;
-
-			ret = _alErrorNgs2Al(sceNgsVoiceUnlockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER));
-			if (ret != AL_NO_ERROR)
+			if (src->m_afterSeek == AL_TRUE)
 			{
-				AL_SET_ERROR(ret);
+				src->m_afterSeek = AL_FALSE;
+			}
+			else
+			{
+				pPcmParams->nStartBuffer = src->m_curIdx;
+				pPcmParams->nStartByte = 0;
+			}
+
+			ret = sceNgsVoiceUnlockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
+			if (ret != SCE_NGS_OK)
+			{
+				AL_SET_ERROR(_alErrorNgs2Al(ret));
 				return;
 			}
 		}
-
-		ret = _alErrorNgs2Al(sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, Source::streamCallback, src));
-		if (ret != AL_NO_ERROR)
+		else
 		{
-			AL_SET_ERROR(ret);
+			if (src->m_afterSeek == AL_TRUE)
+			{
+				src->m_afterSeek = AL_FALSE;
+			}
+		}
+
+		/* TODO: find a better way to do this */
+		src->update();
+
+		ret = sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, Source::streamCallback, src);
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
 			return;
 		}
 
@@ -1735,10 +1807,6 @@ AL_API void AL_APIENTRY alSourceStop(ALuint sid)
 	sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_NO_CALLBACK, NULL);
 
 	sceNgsVoiceKill(src->m_voice);
-
-	src->m_offsetSec = 0.0f;
-	src->m_offsetSample = 0.0f;
-	src->m_offsetByte = 0.0f;
 }
 
 AL_API void AL_APIENTRY alSourceRewind(ALuint sid)
@@ -1765,10 +1833,6 @@ AL_API void AL_APIENTRY alSourceRewind(ALuint sid)
 	sceNgsVoiceSetModuleCallback(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_NO_CALLBACK, NULL);
 
 	sceNgsVoiceKill(src->m_voice);
-
-	src->m_offsetSec = 0.0f;
-	src->m_offsetSample = 0.0f;
-	src->m_offsetByte = 0.0f;
 }
 
 AL_API void AL_APIENTRY alSourcePause(ALuint sid)

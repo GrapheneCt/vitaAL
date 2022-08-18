@@ -90,8 +90,9 @@ namespace al {
 
 		ALCboolean validateAttributes(const ALCint* attrlist);
 		ALCvoid setAttributes(const ALCint* attrlist);
-		ALCvoid setThreadAffinity(ALCuint outputThreadAffinity);
+		ALCvoid setThreadAffinity(ALCuint outputThreadAffinity, ALCuint updateThreadAffinity);
 		ALCuint getOutputThreadAffinity();
+		ALCuint getUpdateThreadAffinity();
 		ALCint getMaxMonoVoiceCount();
 		ALCint getMaxStereoVoiceCount();
 		ALCint getSamplingFrequency();
@@ -104,6 +105,7 @@ namespace al {
 		ALCint m_maxMonoVoices;
 		ALCint m_maxStereoVoices;
 		ALCuint m_outputThreadAffinity;
+		ALCuint m_updateThreadAffinity;
 		const ALCint m_samplingFrequency = 48000;
 		const ALCint m_refreshRate = 60;
 		const ALCint m_sync = 0;

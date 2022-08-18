@@ -388,6 +388,7 @@ namespace al {
 		case AL_LINEAR_DISTANCE:
 		case AL_EXPONENT_DISTANCE_CLAMPED:
 		case AL_EXPONENT_DISTANCE:
+		case AL_NONE:
 		case -1:
 			break;
 		default:
@@ -647,6 +648,7 @@ namespace al {
 					*pDistanceGainOut = powf(dist_ratio, -fDistanceFactor);
 				}
 				break;
+			case AL_NONE:
 			case -1:
 				*pDistanceGainOut = 1.0f;
 				break;

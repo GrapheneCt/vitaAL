@@ -569,7 +569,7 @@ ALC_API void ALC_APIENTRY alcGetIntegerv(ALCdevice *device, ALCenum param, ALCsi
 *
 */
 
-AL_API void AL_APIENTRY alcSetThreadAffinityNGS(ALCdevice *device, ALCuint outputThreadAffinity)
+AL_API void AL_APIENTRY alcSetThreadAffinityNGS(ALCdevice *device, ALCuint outputThreadAffinity, ALCuint updateThreadAffinity)
 {
 	DeviceNGS *dev = NULL;
 
@@ -589,7 +589,7 @@ AL_API void AL_APIENTRY alcSetThreadAffinityNGS(ALCdevice *device, ALCuint outpu
 		return;
 	}
 
-	dev->setThreadAffinity(outputThreadAffinity);
+	dev->setThreadAffinity(outputThreadAffinity, updateThreadAffinity);
 }
 
 AL_API void AL_APIENTRY alcSetMemoryFunctionsNGS(AlMemoryAllocNGS alloc, AlMemoryAllocAlignNGS allocAlign, AlMemoryFreeNGS free)
