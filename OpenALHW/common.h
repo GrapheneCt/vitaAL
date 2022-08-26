@@ -60,7 +60,7 @@ inline SceInt32 _alLockNgsResource(SceNgsHVoice hVoiceHandle, const SceUInt32 uM
 	while (ret == SCE_NGS_ERROR_RESOURCE_LOCKED)
 	{
 		ret = sceNgsVoiceLockParams(hVoiceHandle, uModule, uParamsInterfaceId, pParamsBuffer);
-		sceKernelDelayThread(200);
+		sceKernelDelayThread(100);
 	}
 
 	return ret;

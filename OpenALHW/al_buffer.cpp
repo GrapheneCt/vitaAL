@@ -235,14 +235,31 @@ AL_API void AL_APIENTRY alBufferData(ALuint bid, ALenum format, const ALvoid* da
 		return;
 	}
 
-	if (format != AL_FORMAT_MONO16 && format != AL_FORMAT_STEREO16)
+	if (freq > 192000)
 	{
 		AL_SET_ERROR(AL_INVALID_VALUE);
 		return;
 	}
 
-	if (freq > 192000)
+	switch (format)
 	{
+	case AL_FORMAT_MONO8:
+		buf->m_bits = 8;
+		buf->m_channels = 1;
+		break;
+	case AL_FORMAT_STEREO8:
+		buf->m_bits = 8;
+		buf->m_channels = 2;
+		break;
+	case AL_FORMAT_MONO16:
+		buf->m_bits = 16;
+		buf->m_channels = 1;
+		break;
+	case AL_FORMAT_STEREO16:
+		buf->m_bits = 16;
+		buf->m_channels = 2;
+		break;
+	default:
 		AL_SET_ERROR(AL_INVALID_VALUE);
 		return;
 	}
@@ -253,31 +270,45 @@ AL_API void AL_APIENTRY alBufferData(ALuint bid, ALenum format, const ALvoid* da
 		buf->m_storage = NULL;
 	}
 
-	switch (format)
+	if (buf->m_bits == 8)
 	{
-	case AL_FORMAT_MONO16:
+		buf->m_storage = AL_MALLOC(size * 2);
+
+		if (buf->m_storage == NULL)
+		{
+			AL_SET_ERROR(AL_OUT_OF_MEMORY);
+			return;
+		}
+
+		buf->m_size = size * 2;
+		buf->m_data = (ALint)data;
+		buf->m_frequency = freq;
 		buf->m_bits = 16;
-		buf->m_channels = 1;
-		break;
-	case AL_FORMAT_STEREO16:
-		buf->m_bits = 16;
-		buf->m_channels = 2;
-		break;
+
+		int16_t *dst = (int16_t *)buf->m_storage;
+		uint8_t *src = (uint8_t *)data;
+
+		for (int i = 0; i < size; i++)
+		{
+			dst[i] = (int16_t)(src[i] - 0x80) << 8;
+		}
 	}
-
-	buf->m_storage = AL_MALLOC(size);
-
-	if (buf->m_storage == NULL)
+	else
 	{
-		AL_SET_ERROR(AL_OUT_OF_MEMORY);
-		return;
+		buf->m_storage = AL_MALLOC(size);
+
+		if (buf->m_storage == NULL)
+		{
+			AL_SET_ERROR(AL_OUT_OF_MEMORY);
+			return;
+		}
+
+		buf->m_size = size;
+		buf->m_data = (ALint)data;
+		buf->m_frequency = freq;
+
+		memcpy(buf->m_storage, data, size);
 	}
-
-	buf->m_size = size;
-	buf->m_data = (ALint)data;
-	buf->m_frequency = freq;
-
-	memcpy(buf->m_storage, data, size);
 }
 
 AL_API void AL_APIENTRY alBufferf(ALuint bid, ALenum param, ALfloat value)

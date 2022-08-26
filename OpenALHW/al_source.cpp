@@ -1733,40 +1733,30 @@ AL_API void AL_APIENTRY alSourcePlay(ALuint sid)
 	}
 	else
 	{
-		if (src->m_altype == AL_STREAMING)
+		ret = _alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
+		if (ret != SCE_NGS_OK)
 		{
-			ret = _alLockNgsResource(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER, SCE_NGS_PLAYER_PARAMS_STRUCT_ID, &bufferInfo);
-			if (ret != SCE_NGS_OK)
-			{
-				AL_SET_ERROR(_alErrorNgs2Al(ret));
-				return;
-			}
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
+		}
 
-			pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
+		pPcmParams = (SceNgsPlayerParams *)bufferInfo.data;
 
-			if (src->m_afterSeek == AL_TRUE)
-			{
-				src->m_afterSeek = AL_FALSE;
-			}
-			else
-			{
-				pPcmParams->nStartBuffer = src->m_curIdx;
-				pPcmParams->nStartByte = 0;
-			}
-
-			ret = sceNgsVoiceUnlockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
-			if (ret != SCE_NGS_OK)
-			{
-				AL_SET_ERROR(_alErrorNgs2Al(ret));
-				return;
-			}
+		if (src->m_afterSeek == AL_TRUE)
+		{
+			src->m_afterSeek = AL_FALSE;
 		}
 		else
 		{
-			if (src->m_afterSeek == AL_TRUE)
-			{
-				src->m_afterSeek = AL_FALSE;
-			}
+			pPcmParams->nStartBuffer = src->m_curIdx;
+			pPcmParams->nStartByte = 0;
+		}
+
+		ret = sceNgsVoiceUnlockParams(src->m_voice, SCE_NGS_SIMPLE_VOICE_PCM_PLAYER);
+		if (ret != SCE_NGS_OK)
+		{
+			AL_SET_ERROR(_alErrorNgs2Al(ret));
+			return;
 		}
 
 		/* TODO: find a better way to do this */

@@ -12,6 +12,7 @@ unsigned int sceLibcHeapSize = 200 * 1024 * 1024;
 
 #define TEST_LOOP
 #define TEST_PANNER
+#define TEST_SEEK
 //#define TEST_STATES
 
 #define BUFFER_COUNT 4
@@ -151,6 +152,15 @@ int main(void)
 	SceCtrlData cdata;
 	SceFVector4 pos = {0.0f};
 	sceCtrlSetSamplingMode(SCE_CTRL_MODE_DIGITALANALOG);
+#endif
+
+#ifdef TEST_SEEK
+	alSourcef(source, AL_SEC_OFFSET, 30.0f);
+	if ((error = alGetError()) != AL_NO_ERROR)
+	{
+		printf("alSourcef failed: %s", alGetString(error));
+		abort();
+	}
 #endif
 
 	alSourcePlay(source);
